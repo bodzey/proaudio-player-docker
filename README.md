@@ -13,10 +13,10 @@ proaudio_player                  platform-independent core
         └── proaudio-player-firmware   Buildroot / Raspberry Pi 4
 ```
 
-Початково цей репозиторій pin-ить core commit:
+Поточний pinned core commit:
 
 ```text
-8c272572d4cc4bb58171cd8c8e6bfce627402577
+669df8465929fb1b582aa6cb3ffa3a8fd8128e72
 ```
 
 ## Клонування
@@ -63,6 +63,18 @@ nano docker-data/config/alerts-token
 ```
 
 Контейнер отримує `/dev/snd` і `/run/udev:ro`. Майстер discovery запускає тимчасовий PipeWire/WirePlumber stack і зберігає вибір у `docker-data/config/audio-device.env`.
+
+## Статичні тести Docker adapter
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-test.txt
+git submodule update --init --recursive
+pytest -q
+```
+
+Ці тести перевіряють межу з core, Compose overrides, Dockerfile stages/runtime dependencies, аудіо discovery та Supervisor services.
 
 ## Дані
 

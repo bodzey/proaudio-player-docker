@@ -3,6 +3,7 @@
 .gitignore
 .vscode
 .idea
+.venv
 docker-data
 README.md
 docs
