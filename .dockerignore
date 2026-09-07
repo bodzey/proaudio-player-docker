@@ -6,6 +6,8 @@
 docker-data
 README.md
 docs
+tests
+requirements-test.txt
 compose*.yaml
 sources/proaudio-player/.venv
 sources/proaudio-player/.pytest_cache
