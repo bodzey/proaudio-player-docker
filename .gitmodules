@@ -1,0 +1,3 @@
+[submodule "sources/proaudio-player"]
+	path = sources/proaudio-player
+	url = git@github.com:bodzey/proaudio_player.git

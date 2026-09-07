@@ -1,0 +1,12 @@
+docker-data/
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db

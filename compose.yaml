@@ -1,0 +1,26 @@
+services:
+  proaudio-player:
+    build:
+      context: .
+      args:
+        APP_VERSION: "${APP_VERSION:-dev}"
+        PLAYER_REVISION: "${PLAYER_REVISION:-unknown}"
+        SPOTIFYD_VERSION: "${SPOTIFYD_VERSION:-0.4.2}"
+    image: proaudio-player:dev
+    container_name: proaudio-player
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: Europe/Kyiv
+      AUDIO_MODE: "null"
+      PHYSICAL_SINK: proaudio_player_test_output
+      ENABLE_AIRPLAY: "true"
+      ENABLE_DLNA: "true"
+      ENABLE_MPD: "true"
+      ENABLE_SPOTIFY: "true"
+      ENABLE_WEB: "true"
+    volumes:
+      - ./docker-data/config:/etc/proaudio-player-alert
+      - ./docker-data/data:/var/lib/proaudio-player-alert
+      - ./docker-data/music:/srv/music
+    stop_grace_period: 20s

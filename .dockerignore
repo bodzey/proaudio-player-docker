@@ -1,0 +1,16 @@
+.git
+**/.git
+.gitignore
+.vscode
+.idea
+docker-data
+README.md
+docs
+compose*.yaml
+sources/proaudio-player/.venv
+sources/proaudio-player/.pytest_cache
+sources/proaudio-player/.mypy_cache
+sources/proaudio-player/.ruff_cache
+sources/proaudio-player/tests
+sources/proaudio-player/build
+sources/proaudio-player/dist

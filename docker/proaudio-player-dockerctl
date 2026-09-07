@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+base=(docker compose -f compose.yaml)
+AUDIO_DEVICE_ENV=docker-data/config/audio-device.env
+hardware=(docker compose --env-file "$AUDIO_DEVICE_ENV" -f compose.yaml -f compose.hardware.yaml)
+SERVICE=proaudio-player
+
+require_core() {
+    if [[ ! -f sources/proaudio-player/pyproject.toml ]]; then
+        echo "Core submodule не ініціалізовано." >&2
+        echo "Виконайте: git submodule update --init --recursive" >&2
+        exit 1
+    fi
+}
+
+initialize() {
+    require_core
+    install -d -m 0755 docker-data/config docker-data/data docker-data/music
+    if [[ ! -f docker-data/config/config.yaml ]]; then
+        install -m 0644 sources/proaudio-player/config/config.yaml.example \
+            docker-data/config/config.yaml
+    fi
+    if [[ ! -f docker-data/config/alerts-token ]]; then
+        install -m 0600 /dev/null docker-data/config/alerts-token
+    fi
+    if [[ ! -f "$AUDIO_DEVICE_ENV" ]]; then
+        printf '%s\n' \
+            'PROAUDIO_PHYSICAL_SINK=AUTO' \
+            'PROAUDIO_OUTPUT_VOLUME_PERCENT=100' >"$AUDIO_DEVICE_ENV"
+    fi
+    echo "Каталоги створено. Запишіть API-токен у docker-data/config/alerts-token"
+}
+
+saved_sink() {
+    sed -n 's/^PROAUDIO_PHYSICAL_SINK=//p' "$AUDIO_DEVICE_ENV" | tail -n 1
+}
+
+save_sink() {
+    local sink="$1"
+    if ! [[ "$sink" =~ ^[A-Za-z0-9_.:-]+$ ]]; then
+        echo "Некоректна назва PipeWire sink: $sink" >&2
+        exit 1
+    fi
+    local output_volume
+    output_volume="$(sed -n 's/^PROAUDIO_OUTPUT_VOLUME_PERCENT=//p' \
+        "$AUDIO_DEVICE_ENV" | tail -n 1)"
+    [[ "$output_volume" =~ ^[0-9]+$ ]] || output_volume=100
+    printf 'PROAUDIO_PHYSICAL_SINK=%s\nPROAUDIO_OUTPUT_VOLUME_PERCENT=%s\n' \
+        "$sink" "$output_volume" >"$AUDIO_DEVICE_ENV"
+}
+
+select_audio() {
+    initialize
+    echo "Збирання образу та пошук доступних аудіовиходів..."
+    "${hardware[@]}" build
+
+    local discovery_output
+    if ! discovery_output="$("${hardware[@]}" run -T --rm --no-deps \
+        --entrypoint /usr/local/bin/discover-audio.sh "$SERVICE")"; then
+        echo "Не вдалося отримати список аудіовиходів." >&2
+        exit 1
+    fi
+
+    local -a sink_names=() sink_descriptions=()
+    while IFS=$'\t' read -r marker sink description; do
+        [[ "$marker" == "SINK" && -n "$sink" ]] || continue
+        sink_names+=("$sink")
+        sink_descriptions+=("$description")
+    done <<<"$discovery_output"
+
+    if ((${#sink_names[@]} == 0)); then
+        echo "Фізичних аудіовиходів не знайдено." >&2
+        exit 1
+    fi
+
+    local current default_choice=1
+    current="$(saved_sink)"
+    echo
+    echo "Доступні аудіовиходи:"
+    for index in "${!sink_names[@]}"; do
+        local number=$((index + 1)) suffix=""
+        if [[ "${sink_names[$index]}" == "$current" ]]; then
+            suffix=" (поточний)"
+            default_choice="$number"
+        fi
+        printf '  %d) %s%s\n     %s\n' "$number" \
+            "${sink_descriptions[$index]}" "$suffix" "${sink_names[$index]}"
+    done
+
+    if [[ ! -t 0 ]]; then
+        if [[ "$current" != "AUTO" ]] && printf '%s\n' "${sink_names[@]}" | grep -Fxq "$current"; then
+            echo "Неінтерактивний запуск: використовується збережений вихід $current"
+            return 0
+        fi
+        echo "Потрібен інтерактивний термінал для вибору аудіовиходу." >&2
+        echo "Запустіть: ./docker/proaudio-player-dockerctl select-audio" >&2
+        exit 1
+    fi
+
+    local choice
+    read -r -p "Оберіть номер аудіовиходу [$default_choice]: " choice
+    choice="${choice:-$default_choice}"
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || ((choice < 1 || choice > ${#sink_names[@]})); then
+        echo "Неправильний номер аудіовиходу." >&2
+        exit 1
+    fi
+    save_sink "${sink_names[$((choice - 1))]}"
+    echo "Вибрано: ${sink_descriptions[$((choice - 1))]}"
+}
+
+case "${1:-}" in
+    init)
+        initialize
+        ;;
+    core-rev)
+        require_core
+        git -C sources/proaudio-player rev-parse HEAD
+        ;;
+    up-test)
+        initialize
+        "${base[@]}" up -d --build
+        ;;
+    up-hardware)
+        [[ -d /dev/snd ]] || {
+            echo "На хості немає /dev/snd; звуковий пристрій не виявлено." >&2
+            exit 1
+        }
+        initialize
+        if [[ "$(saved_sink)" == "AUTO" || -z "$(saved_sink)" ]]; then
+            select_audio
+        else
+            echo "Використовується збережений аудіовихід: $(saved_sink)"
+            echo "Для зміни виконайте: ./docker/proaudio-player-dockerctl select-audio"
+        fi
+        "${hardware[@]}" up -d --build
+        ;;
+    select-audio)
+        [[ -d /dev/snd ]] || {
+            echo "На хості немає /dev/snd; звуковий пристрій не виявлено." >&2
+            exit 1
+        }
+        select_audio
+        ;;
+    down)
+        "${base[@]}" down
+        ;;
+    status)
+        "${base[@]}" ps
+        "${base[@]}" exec "$SERVICE" supervisorctl \
+            -c /etc/supervisor/conf.d/proaudio-player.conf status
+        ;;
+    logs)
+        "${base[@]}" logs -f --tail "${2:-150}" "$SERVICE"
+        ;;
+    sinks)
+        "${base[@]}" exec -u proaudio-player "$SERVICE" pactl list short sinks
+        ;;
+    state)
+        "${base[@]}" exec -u proaudio-player "$SERVICE" \
+            /opt/proaudio-player/venv/bin/proaudio-player-alert \
+            --config /etc/proaudio-player-alert/config.yaml status
+        ;;
+    test-cycle)
+        "${base[@]}" exec -u proaudio-player "$SERVICE" \
+            /opt/proaudio-player/venv/bin/proaudio-player-alert \
+            --config /etc/proaudio-player-alert/config.yaml \
+            test-cycle --hold "${2:-5}"
+        ;;
+    test-silence)
+        "${base[@]}" exec -u proaudio-player "$SERVICE" \
+            /opt/proaudio-player/venv/bin/proaudio-player-alert \
+            --config /etc/proaudio-player-alert/config.yaml test-silence
+        ;;
+    mpd-update)
+        "${base[@]}" exec "$SERVICE" mpc update
+        ;;
+    mpc)
+        shift
+        "${base[@]}" exec "$SERVICE" mpc "$@"
+        ;;
+    shell)
+        "${base[@]}" exec "$SERVICE" bash
+        ;;
+    *)
+        echo "Використання: docker/proaudio-player-dockerctl {init|core-rev|select-audio|up-test|up-hardware|down|status|logs [рядки]|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
+        exit 2
+        ;;
+esac
