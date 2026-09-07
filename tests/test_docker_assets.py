@@ -17,7 +17,7 @@ def service_from(path: str):
 def test_core_is_git_submodule_not_copied_source():
     modules = (ROOT / ".gitmodules").read_text(encoding="utf-8")
     assert "path = sources/proaudio-player" in modules
-    assert "git@github.com:bodzey/proaudio_player.git" in modules
+    assert "url = ../proaudio_player.git" in modules
     assert not (ROOT / "src").exists()
     assert not (ROOT / "config").exists()
 
@@ -56,6 +56,7 @@ def test_dockerfile_consumes_shared_core_assets():
         "COPY sources/proaudio-player/pyproject.toml",
         "COPY sources/proaudio-player/src",
         "COPY sources/proaudio-player/config",
+        "COPY sources/proaudio-player/src/proaudio_player_alert/default_media",
         "COPY sources/proaudio-player/scripts/audio-buses.sh",
         "COPY sources/proaudio-player/config/wireplumber/51-proaudio-soft-mixer.conf",
     ):
@@ -106,14 +107,17 @@ def test_runtime_image_contains_only_runtime_audio_dependencies():
         assert build_or_unused not in runtime
 
 
-def test_build_only_tools_do_not_leak_into_runtime_image():
+def test_default_media_is_consumed_without_a_synthesis_build_stage():
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     entrypoint = (ROOT / "docker/docker-entrypoint.sh").read_text(encoding="utf-8")
 
     assert "FROM debian:trixie-slim AS python-builder" in dockerfile
-    assert "FROM debian:trixie-slim AS announcements-builder" in dockerfile
     assert "COPY --from=python-builder" in dockerfile
-    assert "COPY --from=announcements-builder" in dockerfile
+    assert "FROM debian:trixie-slim AS announcements-builder" not in dockerfile
+    assert "generate-default-announcements.sh" not in dockerfile
+    assert "espeak-ng" not in dockerfile
+    assert "ffmpeg" not in dockerfile
+    assert "src/proaudio_player_alert/default_media" in dockerfile
     assert "/opt/proaudio-player/default-media" in entrypoint
     assert "generate-default-announcements.sh" not in entrypoint
 
