@@ -38,6 +38,18 @@ git submodule update --init --recursive
 ./docker/proaudio-player-dockerctl core-rev
 ```
 
+## Локальні тести adapter + pinned core
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-test.txt
+git submodule update --init --recursive
+pytest -q
+```
+
+`requirements-test.txt` встановлює pinned `sources/proaudio-player` як editable package разом із його runtime/test залежностями. `pytest -q` запускає тести Docker adapter та тести саме тієї ревізії core, яка зафіксована submodule.
+
 ## Ініціалізація
 
 ```bash
@@ -63,18 +75,6 @@ nano docker-data/config/alerts-token
 ```
 
 Контейнер отримує `/dev/snd` і `/run/udev:ro`. Майстер discovery запускає тимчасовий PipeWire/WirePlumber stack і зберігає вибір у `docker-data/config/audio-device.env`.
-
-## Статичні тести Docker adapter
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements-test.txt
-git submodule update --init --recursive
-pytest -q
-```
-
-Ці тести перевіряють межу з core, Compose overrides, Dockerfile stages/runtime dependencies, аудіо discovery та Supervisor services.
 
 ## Дані
 
