@@ -9,14 +9,14 @@ Docker/Compose integration layer for `bodzey/proaudio_player`.
 ```text
 proaudio_player                  platform-independent core
         │
-        ├── proaudio-player-docker     Docker / amd64 dev + testing
+        ├── proaudio_player_docker     Docker / amd64 dev + testing
         └── proaudio-player-firmware   Buildroot / Raspberry Pi 4
 ```
 
 Початково цей репозиторій pin-ить core commit:
 
 ```text
-c84c115435ed0ac1135e151ca3a5ea5015a8bfc1
+8c272572d4cc4bb58171cd8c8e6bfce627402577
 ```
 
 ## Клонування
