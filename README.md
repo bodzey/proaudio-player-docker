@@ -2,7 +2,7 @@
 
 Docker/Compose integration layer for `bodzey/proaudio_player`.
 
-Цей репозиторій призначений для розробки та інтеграційного тестування ProAudio Player на Linux amd64 або aarch64. Він не містить копію ядра: `proaudio_player` підключається як Git submodule у `sources/proaudio-player` і фіксується на конкретному commit.
+Цей репозиторій призначений для розробки та інтеграційного тестування ProAudio Player на Linux amd64 або aarch64. Він не містить копію ядра: `proaudio_player` підключається як Git submodule у `sources/proaudio-player` і фіксується на конкретному commit з гілки `main`.
 
 ## Модель репозиторіїв
 
@@ -13,10 +13,10 @@ proaudio_player                  platform-independent core
         └── proaudio-player-firmware   Buildroot / Raspberry Pi 4
 ```
 
-Поточний pinned core commit:
+Поточний pinned core commit (`proaudio_player/main`):
 
 ```text
-616c41cca43ee9d7cf44483bd2bad5347015b775
+5e16db504c4760c739a48fd2a4b4d81cbfa09323
 ```
 
 ## Клонування
@@ -102,15 +102,17 @@ Compose використовує `network_mode: host`, що також потр�
 
 ## Оновлення ядра
 
-Core не копіюється в цей репозиторій. Для тестування іншого commit:
+Робоча гілка в усіх трьох репозиторіях — `main`. Docker не копіює core, а pin-ить конкретний commit із `proaudio_player/main`.
+
+Для оновлення до поточного `main` ядра:
 
 ```bash
 cd sources/proaudio-player
-git fetch
-git checkout <commit-or-tag>
+git fetch origin main
+git checkout origin/main
 cd ../..
 git add sources/proaudio-player
-git commit -m "chore: update player core"
+git commit -m "chore: update player core main"
 ```
 
 Після цього:
@@ -118,7 +120,5 @@ git commit -m "chore: update player core"
 ```bash
 ./docker/proaudio-player-dockerctl up-test
 ```
-
-Production/stable Docker revisions повинні pin-ити release tag або перевірений commit, а не автоматично слідувати за `main`.
 
 Докладніше: [docs/DOCKER.md](docs/DOCKER.md).
