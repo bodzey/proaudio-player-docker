@@ -2,21 +2,21 @@
 
 Docker/Compose integration layer for `bodzey/proaudio_player`.
 
-Цей репозиторій призначений для розробки та інтеграційного тестування ProAudio Player на Linux amd64 сервері. Він не містить копію ядра: `proaudio_player` підключається як Git submodule у `sources/proaudio-player` і фіксується на конкретному commit.
+Цей репозиторій призначений для розробки та інтеграційного тестування ProAudio Player на Linux amd64 або aarch64. Він не містить копію ядра: `proaudio_player` підключається як Git submodule у `sources/proaudio-player` і фіксується на конкретному commit.
 
 ## Модель репозиторіїв
 
 ```text
 proaudio_player                  platform-independent core
         │
-        ├── proaudio_player_docker     Docker / amd64 dev + testing
+        ├── proaudio_player_docker     Docker / dev + testing
         └── proaudio-player-firmware   Buildroot / Raspberry Pi 4
 ```
 
 Поточний pinned core commit:
 
 ```text
-669df8465929fb1b582aa6cb3ffa3a8fd8128e72
+616c41cca43ee9d7cf44483bd2bad5347015b775
 ```
 
 ## Клонування
@@ -25,6 +25,8 @@ proaudio_player                  platform-independent core
 git clone --recurse-submodules git@github.com:bodzey/proaudio_player_docker.git
 cd proaudio_player_docker
 ```
+
+Відносний URL submodule автоматично використовує протокол основного clone: SSH для SSH clone або HTTPS для HTTPS clone.
 
 Для вже клонованого репозиторію:
 
@@ -85,6 +87,8 @@ docker-data/config/    runtime config + alerts token + audio selection
 docker-data/data/      state + alert media + MPD state
 docker-data/music/     local music library
 ```
+
+Під час першого запуску стандартні MP3-сповіщення копіюються з pinned core. Власні файли в `docker-data/data/media/` при rebuild не перезаписуються.
 
 ## Web UI
 

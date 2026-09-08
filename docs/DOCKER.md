@@ -19,7 +19,7 @@
 - Python runtime із встановленим `proaudio_player`;
 - Supervisor і Tini для контейнерного lifecycle.
 
-Rust toolchain, Python venv builder, `espeak-ng` і FFmpeg для генерації стандартних announcement media використовуються у build stages і не потрібні як development toolchain на Docker host.
+Rust toolchain і Python venv builder використовуються лише у build stages та не потрапляють у runtime image. Стандартні announcement media беруться безпосередньо з pinned core, тому `espeak-ng` і FFmpeg не потрібні ні в build stage, ні в runtime.
 
 ## Режими
 
@@ -65,6 +65,8 @@ docker-data/config/audio-device.env
 ```
 
 `api.alsa.soft-mixer=true` береться зі спільної конфігурації core. Це дозволяє керувати програмною PipeWire-гучністю без зміни апаратного ALSA mixer.
+
+Стандартні MP3 також беруться зі спільного core. При першому запуску entrypoint копіює відсутні файли у persistent data, не перезаписуючи користувацькі повідомлення.
 
 ## Мережа
 

@@ -28,19 +28,6 @@ RUN python3 -m venv /opt/proaudio-player/venv \
     && /opt/proaudio-player/venv/bin/pip install \
        --disable-pip-version-check --no-cache-dir /opt/proaudio-player
 
-FROM debian:trixie-slim AS announcements-builder
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends espeak-ng ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY sources/proaudio-player/scripts/generate-default-announcements.sh /usr/local/bin/
-
-RUN chmod 0755 /usr/local/bin/generate-default-announcements.sh \
-    && /usr/local/bin/generate-default-announcements.sh /generated-media
-
 FROM debian:trixie-slim AS runtime
 
 ARG APP_VERSION=dev
@@ -73,9 +60,10 @@ WORKDIR /opt/proaudio-player
 
 COPY --from=spotifyd-builder /spotifyd-install/bin/spotifyd /usr/local/bin/spotifyd
 COPY --from=python-builder /opt/proaudio-player/venv /opt/proaudio-player/venv
-COPY --from=announcements-builder /generated-media /opt/proaudio-player/default-media
 
 COPY sources/proaudio-player/config /opt/proaudio-player/defaults
+COPY sources/proaudio-player/src/proaudio_player_alert/default_media \
+     /opt/proaudio-player/default-media
 COPY sources/proaudio-player/scripts/audio-buses.sh /opt/proaudio-player/scripts/audio-buses.sh
 
 COPY docker/supervisord.conf /etc/supervisor/conf.d/proaudio-player.conf
