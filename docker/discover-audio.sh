@@ -14,6 +14,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+dbus-uuidgen --ensure=/etc/machine-id
+
 install -d -o "$AUDIO_USER" -g "$AUDIO_USER" -m 0700 "$RUNTIME_DIR"
 install -d -o "$AUDIO_USER" -g "$AUDIO_USER" -m 0750 \
     "/home/$AUDIO_USER/.local/state/wireplumber"
@@ -51,7 +53,7 @@ PROCESS_IDS+=("$!")
 for _ in {1..200}; do
     if "${as_audio[@]}" pactl info >/dev/null 2>&1; then
         sink_count="$("${as_audio[@]}" pactl list short sinks 2>/dev/null | \
-            awk '$2 != "auto_null" { count++ } END { print count + 0 }')"
+            awk '$2 != "auto_null" && $2 !~ /^proaudio_player_/ { count++ } END { print count + 0 }')"
         ((sink_count > 0)) && break
     fi
     sleep 0.1
@@ -62,30 +64,38 @@ if ! "${as_audio[@]}" pactl info >/dev/null 2>&1; then
     exit 1
 fi
 
-sleep 2
+sleep 1
 
-"${as_audio[@]}" pactl --format=json list sinks | python3 -c '
-import json
-import sys
-
-sinks = json.load(sys.stdin)
-found = 0
-for sink in sinks:
-    name = str(sink.get("name", ""))
-    if not name or name == "auto_null" or name.startswith("proaudio_player_"):
-        continue
-    props = sink.get("properties") or {}
-    description = str(
-        props.get("device.description")
-        or props.get("node.description")
-        or props.get("device.product.name")
-        or name
-    ).replace("\t", " ").replace("\n", " ")
-    print(f"SINK\t{name}\t{description}")
-    found += 1
-if not found:
-    raise SystemExit(2)
+"${as_audio[@]}" pactl list sinks | awk '
+    /^Sink #[0-9]+/ {
+        if (name != "" && name != "auto_null" && name !~ /^proaudio_player_/) {
+            if (description == "") description = name
+            printf "SINK\t%s\t%s\n", name, description
+            found++
+        }
+        name=""
+        description=""
+        next
+    }
+    /^[[:space:]]*Name:/ {
+        sub(/^[[:space:]]*Name:[[:space:]]*/, "")
+        name=$0
+        next
+    }
+    /^[[:space:]]*Description:/ {
+        sub(/^[[:space:]]*Description:[[:space:]]*/, "")
+        description=$0
+        next
+    }
+    END {
+        if (name != "" && name != "auto_null" && name !~ /^proaudio_player_/) {
+            if (description == "") description = name
+            printf "SINK\t%s\t%s\n", name, description
+            found++
+        }
+        if (!found) exit 2
+    }
 ' || {
-    echo "PipeWire не виявив жодного фізичного виходу. Перевірте /dev/snd і /run/udev." >&2
+    echo "PipeWire не виявив фізичних виходів. Перевірте /dev/snd і /run/udev." >&2
     exit 1
 }

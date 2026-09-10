@@ -1,9 +1,7 @@
 services:
   proaudio-player:
     environment:
-      AUDIO_MODE: "hardware"
-      PHYSICAL_SINK: "${PROAUDIO_PHYSICAL_SINK:-AUTO}"
-      OUTPUT_VOLUME_PERCENT: "${PROAUDIO_OUTPUT_VOLUME_PERCENT:-100}"
+      AUDIO_MODE: hardware
     devices:
       - /dev/snd:/dev/snd
     group_add:

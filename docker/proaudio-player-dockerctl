@@ -5,38 +5,64 @@ PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 base=(docker compose -f compose.yaml)
-AUDIO_DEVICE_ENV=docker-data/config/audio-device.env
-hardware=(docker compose --env-file "$AUDIO_DEVICE_ENV" -f compose.yaml -f compose.hardware.yaml)
+hardware=(docker compose -f compose.yaml -f compose.hardware.yaml)
 SERVICE=proaudio-player
+NATIVE=sources/proaudio-player-native
+WEBUI=sources/proaudio-player-webui
+OUTPUT_ENV=docker-data/data/audio-output.env
 
-require_core() {
-    if [[ ! -f sources/proaudio-player/pyproject.toml ]]; then
-        echo "Core submodule не ініціалізовано." >&2
-        echo "Виконайте: git submodule update --init --recursive" >&2
+require_sources() {
+    if [[ ! -f "$NATIVE/Cargo.toml" || ! -f "$WEBUI/index.html" ]]; then
+        echo "Dev submodules не ініціалізовано." >&2
+        echo "Виконайте: git submodule update --init sources/proaudio-player-native sources/proaudio-player-webui" >&2
         exit 1
     fi
 }
 
 initialize() {
-    require_core
+    require_sources
     install -d -m 0755 docker-data/config docker-data/data docker-data/music
+
     if [[ ! -f docker-data/config/config.yaml ]]; then
-        install -m 0644 sources/proaudio-player/config/config.yaml.example \
+        install -m 0644 "$NATIVE/config/config.yaml.example" \
             docker-data/config/config.yaml
     fi
+    if [[ ! -f docker-data/config/audio.env ]]; then
+        install -m 0644 "$NATIVE/config/audio.env.example" \
+            docker-data/config/audio.env
+    fi
+    for config_name in mpd.conf shairport-sync.conf spotifyd.conf; do
+        if [[ ! -f "docker-data/config/$config_name" ]]; then
+            install -m 0644 "$NATIVE/config/$config_name" \
+                "docker-data/config/$config_name"
+        fi
+    done
     if [[ ! -f docker-data/config/alerts-token ]]; then
         install -m 0600 /dev/null docker-data/config/alerts-token
     fi
-    if [[ ! -f "$AUDIO_DEVICE_ENV" ]]; then
-        printf '%s\n' \
-            'PROAUDIO_PHYSICAL_SINK=AUTO' \
-            'PROAUDIO_OUTPUT_VOLUME_PERCENT=100' >"$AUDIO_DEVICE_ENV"
-    fi
-    echo "Каталоги створено. Запишіть API-токен у docker-data/config/alerts-token"
+
+    echo "Docker runtime ініціалізовано."
+}
+
+sync_dev() {
+    git submodule sync --recursive
+    git submodule update --init --remote sources/proaudio-player-native sources/proaudio-player-webui
+    echo "Оновлено submodules до поточних dev-гілок:"
+    revisions
+}
+
+revisions() {
+    require_sources
+    printf 'native  %s  (%s)\n' \
+        "$(git -C "$NATIVE" rev-parse --short=12 HEAD)" \
+        "$(git -C "$NATIVE" branch --show-current || true)"
+    printf 'webui   %s  (%s)\n' \
+        "$(git -C "$WEBUI" rev-parse --short=12 HEAD)" \
+        "$(git -C "$WEBUI" branch --show-current || true)"
 }
 
 saved_sink() {
-    sed -n 's/^PROAUDIO_PHYSICAL_SINK=//p' "$AUDIO_DEVICE_ENV" | tail -n 1
+    sed -n 's/^PHYSICAL_SINK=//p' "$OUTPUT_ENV" 2>/dev/null | tail -n 1
 }
 
 save_sink() {
@@ -45,17 +71,17 @@ save_sink() {
         echo "Некоректна назва PipeWire sink: $sink" >&2
         exit 1
     fi
-    local output_volume
-    output_volume="$(sed -n 's/^PROAUDIO_OUTPUT_VOLUME_PERCENT=//p' \
-        "$AUDIO_DEVICE_ENV" | tail -n 1)"
-    [[ "$output_volume" =~ ^[0-9]+$ ]] || output_volume=100
-    printf 'PROAUDIO_PHYSICAL_SINK=%s\nPROAUDIO_OUTPUT_VOLUME_PERCENT=%s\n' \
-        "$sink" "$output_volume" >"$AUDIO_DEVICE_ENV"
+    install -d -m 0755 "$(dirname "$OUTPUT_ENV")"
+    printf 'PHYSICAL_SINK=%s\n' "$sink" >"$OUTPUT_ENV"
 }
 
 select_audio() {
+    [[ -d /dev/snd ]] || {
+        echo "На хості немає /dev/snd; звуковий пристрій не виявлено." >&2
+        exit 1
+    }
     initialize
-    echo "Збирання образу та пошук доступних аудіовиходів..."
+    echo "Збирання amd64 образу та пошук аудіовиходів..."
     "${hardware[@]}" build
 
     local discovery_output
@@ -92,12 +118,7 @@ select_audio() {
     done
 
     if [[ ! -t 0 ]]; then
-        if [[ "$current" != "AUTO" ]] && printf '%s\n' "${sink_names[@]}" | grep -Fxq "$current"; then
-            echo "Неінтерактивний запуск: використовується збережений вихід $current"
-            return 0
-        fi
         echo "Потрібен інтерактивний термінал для вибору аудіовиходу." >&2
-        echo "Запустіть: ./docker/proaudio-player-dockerctl select-audio" >&2
         exit 1
     fi
 
@@ -108,41 +129,47 @@ select_audio() {
         echo "Неправильний номер аудіовиходу." >&2
         exit 1
     fi
+
     save_sink "${sink_names[$((choice - 1))]}"
     echo "Вибрано: ${sink_descriptions[$((choice - 1))]}"
+}
+
+compose_with_revisions() {
+    require_sources
+    NATIVE_REVISION="$(git -C "$NATIVE" rev-parse HEAD)" \
+    WEBUI_REVISION="$(git -C "$WEBUI" rev-parse HEAD)" \
+    "$@"
 }
 
 case "${1:-}" in
     init)
         initialize
         ;;
-    core-rev)
-        require_core
-        git -C sources/proaudio-player rev-parse HEAD
+    sync-dev)
+        sync_dev
+        ;;
+    revisions|core-rev)
+        revisions
         ;;
     up-test)
         initialize
-        "${base[@]}" up -d --build
+        compose_with_revisions "${base[@]}" up -d --build
         ;;
     up-hardware)
         [[ -d /dev/snd ]] || {
-            echo "На хості немає /dev/snd; звуковий пристрій не виявлено." >&2
+            echo "На хості немає /dev/snd; використайте up-test або підключіть аудіопристрій." >&2
             exit 1
         }
         initialize
-        if [[ "$(saved_sink)" == "AUTO" || -z "$(saved_sink)" ]]; then
-            select_audio
+        current="$(saved_sink)"
+        if [[ -n "$current" ]]; then
+            echo "Збережений аудіовихід: $current"
         else
-            echo "Використовується збережений аудіовихід: $(saved_sink)"
-            echo "Для зміни виконайте: ./docker/proaudio-player-dockerctl select-audio"
+            echo "Аудіовихід не зафіксовано; PipeWire автоматично вибере фізичний sink."
         fi
-        "${hardware[@]}" up -d --build
+        compose_with_revisions "${hardware[@]}" up -d --build
         ;;
     select-audio)
-        [[ -d /dev/snd ]] || {
-            echo "На хості немає /dev/snd; звуковий пристрій не виявлено." >&2
-            exit 1
-        }
         select_audio
         ;;
     down)
@@ -161,18 +188,18 @@ case "${1:-}" in
         ;;
     state)
         "${base[@]}" exec -u proaudio-player "$SERVICE" \
-            /opt/proaudio-player/venv/bin/proaudio-player-alert \
+            /usr/local/bin/proaudio-player-native \
             --config /etc/proaudio-player-alert/config.yaml status
         ;;
     test-cycle)
         "${base[@]}" exec -u proaudio-player "$SERVICE" \
-            /opt/proaudio-player/venv/bin/proaudio-player-alert \
+            /usr/local/bin/proaudio-player-native \
             --config /etc/proaudio-player-alert/config.yaml \
             test-cycle --hold "${2:-5}"
         ;;
     test-silence)
         "${base[@]}" exec -u proaudio-player "$SERVICE" \
-            /opt/proaudio-player/venv/bin/proaudio-player-alert \
+            /usr/local/bin/proaudio-player-native \
             --config /etc/proaudio-player-alert/config.yaml test-silence
         ;;
     mpd-update)
@@ -186,7 +213,7 @@ case "${1:-}" in
         "${base[@]}" exec "$SERVICE" bash
         ;;
     *)
-        echo "Використання: docker/proaudio-player-dockerctl {init|core-rev|select-audio|up-test|up-hardware|down|status|logs [рядки]|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
+        echo "Використання: docker/proaudio-player-dockerctl {init|sync-dev|revisions|select-audio|up-test|up-hardware|down|status|logs [рядки]|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
         exit 2
         ;;
 esac

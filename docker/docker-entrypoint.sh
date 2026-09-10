@@ -5,13 +5,13 @@ CONFIG_DIR=/etc/proaudio-player-alert
 DATA_DIR=/var/lib/proaudio-player-alert
 RUNTIME_DIR=/run/proaudio-player
 DEFAULTS_DIR=/opt/proaudio-player/defaults
-DEFAULT_MEDIA_DIR=/opt/proaudio-player/default-media
 
-install -d -m 0755 "$CONFIG_DIR" /srv/music
-install -d -m 0750 "$DATA_DIR" "$DATA_DIR/media" "$DATA_DIR/mpd" \
-    "$DATA_DIR/mpd/playlists"
-install -d -m 0755 /run/dbus
-install -d -o proaudio-player -g proaudio-player -m 0700 "$RUNTIME_DIR"
+install -d -m 0755 "$CONFIG_DIR" /srv/music /run/dbus /var/lib/dbus
+install -d -m 0750 "$DATA_DIR" "$DATA_DIR/mpd" "$DATA_DIR/mpd/playlists"
+install -d -o proaudio-player -g proaudio-player -m 0700 \
+    "$RUNTIME_DIR" /run/shairport-sync
+install -d -o proaudio-player -g proaudio-player -m 0750 \
+    /home/proaudio-player/.local/state/wireplumber
 
 for config_name in config.yaml audio.env mpd.conf shairport-sync.conf spotifyd.conf; do
     if [[ ! -f "$CONFIG_DIR/$config_name" ]]; then
@@ -25,17 +25,29 @@ done
 if [[ ! -f "$CONFIG_DIR/alerts-token" ]]; then
     install -m 0600 /dev/null "$CONFIG_DIR/alerts-token"
 fi
-if [[ -s "$CONFIG_DIR/alerts-token" ]]; then
-    export ALERTS_API_TOKEN="$(tr -d '[:space:]' <"$CONFIG_DIR/alerts-token")"
-fi
 
-for media_name in alarm_start.mp3 alarm_end.mp3 minute_silence.mp3; do
-    [[ -f "$DATA_DIR/media/$media_name" ]] || \
-        install -m 0644 "$DEFAULT_MEDIA_DIR/$media_name" "$DATA_DIR/media/$media_name"
-done
+if [[ ! -s "$DATA_DIR/machine-id" ]]; then
+    dbus-uuidgen >"$DATA_DIR/machine-id"
+fi
+install -m 0444 "$DATA_DIR/machine-id" /etc/machine-id
+ln -sfn /etc/machine-id /var/lib/dbus/machine-id
 
 find "$DATA_DIR" -maxdepth 2 -name '*.pid' -delete
-chown -R proaudio-player:proaudio-player "$DATA_DIR" /srv/music "$RUNTIME_DIR"
+
+chown -R proaudio-player:proaudio-player \
+    "$DATA_DIR" /srv/music "$RUNTIME_DIR" /run/shairport-sync \
+    /home/proaudio-player/.local/state/wireplumber
+chown proaudio-player:proaudio-player \
+    "$CONFIG_DIR/config.yaml" "$CONFIG_DIR/audio.env" \
+    "$CONFIG_DIR/mpd.conf" "$CONFIG_DIR/shairport-sync.conf" \
+    "$CONFIG_DIR/spotifyd.conf" "$CONFIG_DIR/alerts-token"
 chmod 0600 "$CONFIG_DIR/alerts-token"
+
+if [[ "${AUDIO_MODE:-null}" == "hardware" && ! -d /dev/snd ]]; then
+    echo "AUDIO_MODE=hardware, але /dev/snd не передано в контейнер." >&2
+    exit 1
+fi
+
+/usr/local/bin/preflight.sh
 
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/proaudio-player.conf

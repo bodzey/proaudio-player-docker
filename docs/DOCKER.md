@@ -1,100 +1,130 @@
-# Docker runtime
+# Docker runtime architecture
 
-Цей репозиторій містить тільки Docker-specific integration. Логіка плеєра, Python package, web UI, shared configs та `audio-buses.sh` беруться з submodule `sources/proaudio-player`.
+`proaudio_player_docker/dev` є адаптером між двома dev-репозиторіями та Linux amd64 host:
 
-## Runtime stack
+```text
+proaudio-player-native/dev
+          +
+proaudio-player-webui/dev
+          |
+          v
+    Docker multi-stage build
+          |
+          v
+ Debian trixie amd64 runtime
+          |
+          +-- proaudio-player-native
+          +-- MPD
+          +-- spotifyd
+          +-- Shairport Sync
+          +-- gmediarender / GStreamer
+          +-- PipeWire + pipewire-pulse + WirePlumber
+          +-- system D-Bus + session D-Bus
+          +-- Avahi
+          |
+          v
+       ALSA / /dev/snd
+```
 
-Контейнер містить:
+## Чому один контейнер
 
-- PipeWire;
-- pipewire-pulse;
-- WirePlumber;
-- Pulse client tools (`pactl`);
-- MPD + `mpc`;
-- MPV;
-- Shairport Sync;
-- gmrender-resurrect + GStreamer Pulse plugin;
-- spotifyd;
-- Avahi;
-- Python runtime із встановленим `proaudio_player`;
-- Supervisor і Tini для контейнерного lifecycle.
+Native control plane взаємодіє з media engines через Pulse/PipeWire sink-и, system D-Bus MPRIS, MPD protocol і локальний gmediarender AVTransport endpoint. Один контейнер з host networking зберігає той самий runtime contract, що й Buildroot firmware, без systemd як PID 1.
 
-Rust toolchain і Python venv builder використовуються лише у build stages та не потрапляють у runtime image. Стандартні announcement media беруться безпосередньо з pinned core, тому `espeak-ng` і FFmpeg не потрібні ні в build stage, ні в runtime.
+Supervisor запускає процеси в такому порядку:
 
-## Режими
+1. system/session D-Bus;
+2. PipeWire, pipewire-pulse, WirePlumber;
+3. постійні music/alert audio buses;
+4. watcher вибору фізичного виходу;
+5. Avahi та media engines;
+6. `proaudio-player-native`.
 
-| Команда | Призначення |
-| --- | --- |
-| `up-test` | Віртуальний test sink, без `/dev/snd` |
-| `up-hardware` | Фізичний ALSA/PipeWire output через `/dev/snd` |
-| `select-audio` | Інтерактивний discovery фізичного sink |
+## Web UI
 
-## Основні команди
+Web UI береться безпосередньо з `proaudio-player-webui/dev` і встановлюється в:
+
+```text
+/usr/share/proaudio-player/webui
+```
+
+Native daemon отримує:
+
+```text
+PROAUDIO_WEBUI_DIR=/usr/share/proaudio-player/webui
+```
+
+Тому один порт 8080 обслуговує і статичний UI, і `/api/v1`.
+
+## Audio
+
+Тестовий режим:
 
 ```bash
-./docker/proaudio-player-dockerctl init
 ./docker/proaudio-player-dockerctl up-test
+```
+
+створює `proaudio_player_test_output` і не потребує `/dev/snd`.
+
+Hardware mode:
+
+```bash
 ./docker/proaudio-player-dockerctl up-hardware
-./docker/proaudio-player-dockerctl down
-./docker/proaudio-player-dockerctl status
-./docker/proaudio-player-dockerctl logs 200
-./docker/proaudio-player-dockerctl sinks
-./docker/proaudio-player-dockerctl state
-./docker/proaudio-player-dockerctl test-cycle 5
-./docker/proaudio-player-dockerctl test-silence
-./docker/proaudio-player-dockerctl mpd-update
-./docker/proaudio-player-dockerctl mpc status
-./docker/proaudio-player-dockerctl shell
 ```
 
-## Аудіо
-
-Core script `sources/proaudio-player/scripts/audio-buses.sh` створює:
+додає:
 
 ```text
-proaudio_player_music
-proaudio_player_alert
+/dev/snd
+/run/udev:ro
 ```
 
-У `up-test` Docker wrapper спочатку створює `proaudio_player_test_output`, а потім передає його core script як фізичний sink.
+Native `audio-buses.sh` створює `proaudio_player_music` і `proaudio_player_alert` та loopback-и до фізичного sink.
 
-У `up-hardware` WirePlumber бачить реальні ALSA-пристрої через `/dev/snd` і udev metadata. Обраний sink зберігається у:
+Постійний вибір виходу зберігається в:
 
 ```text
-docker-data/config/audio-device.env
+/var/lib/proaudio-player-alert/audio-output.env
 ```
 
-`api.alsa.soft-mixer=true` береться зі спільної конфігурації core. Це дозволяє керувати програмною PipeWire-гучністю без зміни апаратного ALSA mixer.
-
-Стандартні MP3 також беруться зі спільного core. При першому запуску entrypoint копіює відсутні файли у persistent data, не перезаписуючи користувацькі повідомлення.
-
-## Мережа
-
-`network_mode: host` використовується навмисно для:
-
-- AirPlay/mDNS;
-- DLNA/UPnP discovery;
-- Spotify Connect;
-- MPD;
-- web UI.
-
-Web UI та MPD не слід експонувати в Інтернет; середовище розраховане на довірену LAN.
-
-## Persistent data
+На host це:
 
 ```text
-docker-data/config -> /etc/proaudio-player-alert
-docker-data/data   -> /var/lib/proaudio-player-alert
-docker-data/music  -> /srv/music
+docker-data/data/audio-output.env
 ```
 
-Тому rebuild контейнера не видаляє конфігурацію, API token, state, MPD database, alert media або локальну музику.
+У Buildroot зміну цього файла ловить systemd path unit. У Docker ту саму функцію виконує `watch-audio-output.sh`.
 
-## Оновлення core
+## D-Bus / MPRIS
 
-Docker adapter і firmware adapter повинні тестувати той самий core release/commit. Після зміни gitlink необхідно перебудувати image.
+`spotifyd` збирається з:
+
+```text
+pulseaudio_backend,dbus_mpris
+```
+
+Shairport Sync і spotifyd публікують MPRIS на system bus. Docker image встановлює policy для користувача `proaudio-player`, тому native daemon може отримувати metadata і виконувати transport control через `busctl --system`.
+
+## Persistent identity
+
+Під час першого запуску створюється `docker-data/data/machine-id`, який монтується логічно через persistent data і копіюється в `/etc/machine-id`. Це стабілізує device identity, яку native використовує для UPnP/4STREAM UUID.
+
+## Оновлення dev
 
 ```bash
-git submodule update --init --recursive
-./docker/proaudio-player-dockerctl up-test
+./docker/proaudio-player-dockerctl sync-dev
+./docker/proaudio-player-dockerctl revisions
 ```
+
+`sync-dev` використовує `git submodule update --remote` для двох верхньорівневих submodule, у `.gitmodules` для яких задано `branch = dev`.
+
+Після перевірки нових ревізій їх потрібно зафіксувати у Docker-репозиторії звичайним commit gitlink-ів.
+
+## Перевірка
+
+```bash
+./docker/proaudio-player-dockerctl status
+curl -fsS http://127.0.0.1:8080/api/v1/health
+./docker/proaudio-player-dockerctl sinks
+```
+
+Healthcheck перевіряє PipeWire buses, критичні Supervisor services та versioned native health endpoint.
