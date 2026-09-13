@@ -37,8 +37,8 @@ DLNA decoder worker (`gmediarender`) винесений у мінімальни�
 
 ```bash
 git clone --branch feature/universal-audio-backend --recurse-submodules \
-  git@github.com:bodzey/proaudio_player_docker.git
-cd proaudio_player_docker
+  git@github.com:bodzey/proaudio-player-docker.git
+cd proaudio-player-docker
 chmod +x docker/proaudio-player-dockerctl
 ```
 
@@ -80,9 +80,11 @@ git submodule update --init --recursive
 Web UI та API:
 
 ```text
-http://IP_СЕРВЕРА:8080/
-http://IP_СЕРВЕРА:8080/api/v1/health
+http://IP_СЕРВЕРА:5371/
+http://IP_СЕРВЕРА:5371/api/v1/health
 ```
+
+Основний контейнер працює з `network_mode: host`, тому класичне Docker mapping `5371:8080` тут не використовується. Docker adapter передає `PROAUDIO_HTTP_PORT=5371` і перед стартом native застосовує цей порт до `api.port` у runtime-конфігурації. Порт можна змінити через змінну `PROAUDIO_HTTP_PORT`.
 
 ## Запуск із фізичним ALSA-пристроєм
 
@@ -155,7 +157,7 @@ pytest -q
 
 ```bash
 ./docker/proaudio-player-dockerctl up-test
-curl -fsS http://127.0.0.1:8080/api/v1/health
+curl -fsS http://127.0.0.1:5371/api/v1/health
 ./docker/proaudio-player-dockerctl status
 ```
 
