@@ -6,10 +6,22 @@ is_true() {
 }
 
 [[ -f "$XDG_RUNTIME_DIR/proaudio-player-ready" ]]
-pactl get-sink-volume proaudio_player_music >/dev/null
-pactl get-sink-volume proaudio_player_alert >/dev/null
+for sink in \
+    proaudio_player_music \
+    proaudio_player_alert \
+    proaudio_player_master \
+    proaudio_player_parking; do
+    pactl get-sink-volume "$sink" >/dev/null
+done
 
-for service in system-dbus pipewire pipewire-pulse wireplumber audio-buses native; do
+for service in \
+    system-dbus \
+    pipewire \
+    pipewire-pulse \
+    wireplumber \
+    audio-buses \
+    audio-output-watch \
+    native; do
     supervisorctl -c /etc/supervisor/conf.d/proaudio-player.conf status "$service" \
         | grep -q RUNNING
 done
