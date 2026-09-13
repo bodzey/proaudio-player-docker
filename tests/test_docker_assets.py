@@ -67,6 +67,9 @@ def test_dlna_worker_is_private_and_matches_native_endpoint():
     assert "--port=49494" in script
     assert "--gstout-initial-volume-db=0.0" in script
 
+    native_dlna = (NATIVE / "src/dlna.rs").read_text(encoding="utf-8")
+    assert "http://169.254.253.1:49494/upnp/control/rendertransport1" in native_dlna
+
 
 def test_hardware_override_exposes_sound_and_udev_only():
     service = service_from("compose.hardware.yaml")
@@ -172,11 +175,18 @@ def test_test_mode_uses_native_parking_fallback_not_docker_test_sink():
     assert "proaudio_player_test_output" not in buses
 
 
-def test_healthcheck_uses_versioned_native_health_endpoint():
+def test_healthcheck_validates_complete_native_audio_graph():
     healthcheck = (ROOT / "docker/container-healthcheck.sh").read_text(encoding="utf-8")
 
     assert "/api/v1/health" in healthcheck
-    assert 'for service in system-dbus pipewire pipewire-pulse wireplumber audio-buses native' in healthcheck
+    for sink in (
+        "proaudio_player_music",
+        "proaudio_player_alert",
+        "proaudio_player_master",
+        "proaudio_player_parking",
+    ):
+        assert sink in healthcheck
+    assert "audio-output-watch" in healthcheck
 
 
 def test_shell_scripts_parse_with_bash():
@@ -194,6 +204,7 @@ def test_expected_feature_source_assets_exist():
     assert (NATIVE / "config/audio.env.example").is_file()
     assert (NATIVE / "scripts/audio-buses.sh").is_file()
     assert (NATIVE / "scripts/proaudio-player-output-watch").is_file()
+    assert (NATIVE / "src/dlna.rs").is_file()
     assert (WEBUI / "package.json").is_file()
     assert (WEBUI / "package-lock.json").is_file()
     assert (WEBUI / "src").is_dir()
