@@ -85,7 +85,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PULSE_SERVER=unix:/run/proaudio-player/pulse/native \
     DBUS_SESSION_BUS_ADDRESS=unix:path=/run/proaudio-player/session-bus \
     PROAUDIO_WEBUI_DIR=/usr/share/proaudio-player/webui \
-    HEALTHCHECK_PORT=8080
+    PROAUDIO_HTTP_PORT=5371 \
+    HEALTHCHECK_PORT=5371
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
