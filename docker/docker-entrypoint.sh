@@ -5,6 +5,7 @@ CONFIG_DIR=/etc/proaudio-player-alert
 DATA_DIR=/var/lib/proaudio-player-alert
 RUNTIME_DIR=/run/proaudio-player
 DEFAULTS_DIR=/opt/proaudio-player/defaults
+HTTP_PORT="${PROAUDIO_HTTP_PORT:-5371}"
 
 install -d -m 0755 "$CONFIG_DIR" /srv/music /run/dbus /var/lib/dbus
 install -d -m 0750 "$DATA_DIR" "$DATA_DIR/mpd" "$DATA_DIR/mpd/playlists"
@@ -26,6 +27,26 @@ for config_name in config.yaml audio.env mpd.conf shairport-sync.conf spotifyd.c
         install -m 0644 "$DEFAULTS_DIR/$source_name" "$CONFIG_DIR/$config_name"
     fi
 done
+
+if ! [[ "$HTTP_PORT" =~ ^[0-9]+$ ]] || ((HTTP_PORT < 1 || HTTP_PORT > 65535)); then
+    echo "Некоректний PROAUDIO_HTTP_PORT: $HTTP_PORT" >&2
+    exit 1
+fi
+
+# The main container uses host networking for multicast/discovery, so Docker
+# cannot publish host_port:container_port in the normal bridge-network sense.
+# Keep the port override in the Docker adapter and apply it to the mounted
+# native config before the control plane starts.
+sed -i -E \
+    "/^(api|web):[[:space:]]*$/,/^[^[:space:]]/ s/^([[:space:]]*port:[[:space:]]*)[0-9]+(.*)$/\\1${HTTP_PORT}\\2/" \
+    "$CONFIG_DIR/config.yaml"
+
+if ! sed -n -E \
+    "/^(api|web):[[:space:]]*$/,/^[^[:space:]]/ p" "$CONFIG_DIR/config.yaml" \
+    | grep -Eq "^[[:space:]]+port:[[:space:]]*${HTTP_PORT}([[:space:]]|$)"; then
+    echo "Не вдалося встановити api.port=$HTTP_PORT у $CONFIG_DIR/config.yaml" >&2
+    exit 1
+fi
 
 if [[ ! -f "$CONFIG_DIR/alerts-token" ]]; then
     install -m 0600 /dev/null "$CONFIG_DIR/alerts-token"
