@@ -11,4 +11,5 @@ tests
 requirements-test.txt
 compose*.yaml
 sources/proaudio-player-native/target
-sources/proaudio-player-native/webui
+sources/proaudio-player-webui/node_modules
+sources/proaudio-player-webui/dist

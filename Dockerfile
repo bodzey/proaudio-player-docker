@@ -1,12 +1,27 @@
 FROM rust:1.88-bookworm AS native-builder
 
-WORKDIR /build/proaudio-player-native
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+       libpulse-dev \
+       pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY sources/proaudio-player-native/Cargo.toml sources/proaudio-player-native/Cargo.lock ./
-COPY sources/proaudio-player-native/src ./src
+WORKDIR /build/proaudio-player-native
+COPY sources/proaudio-player-native/ ./
 
 RUN cargo build --locked --release \
     && strip target/release/proaudio-player-native
+
+
+FROM node:22-bookworm-slim AS webui-builder
+
+WORKDIR /build/proaudio-player-webui
+COPY sources/proaudio-player-webui/package.json \
+     sources/proaudio-player-webui/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY sources/proaudio-player-webui/ ./
+RUN npm run build
 
 
 FROM rust:1.88-bookworm AS spotifyd-builder
@@ -23,16 +38,43 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* /usr/local/cargo/registry /usr/local/cargo/git
 
 
+FROM debian:trixie-slim AS dlna-worker
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    HOME=/home/proaudio-player \
+    PULSE_SERVER=unix:/run/proaudio-player/pulse/native \
+    PULSE_SINK=proaudio_player_music
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       bash \
+       ca-certificates \
+       gmediarender \
+       gstreamer1.0-libav \
+       gstreamer1.0-plugins-good \
+       gstreamer1.0-pulseaudio \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 --shell /usr/sbin/nologin proaudio-player
+
+COPY docker/run-dlna-worker.sh /usr/local/bin/run-dlna-worker.sh
+RUN chmod 0755 /usr/local/bin/run-dlna-worker.sh
+
+USER proaudio-player
+ENTRYPOINT ["/usr/local/bin/run-dlna-worker.sh"]
+
+
 FROM debian:trixie-slim AS runtime
 
-ARG APP_VERSION=dev
+ARG APP_VERSION=feature/universal-audio-backend
 ARG NATIVE_REVISION=unknown
 ARG WEBUI_REVISION=unknown
 
 LABEL org.opencontainers.image.title="ProAudio Player" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.revision="${NATIVE_REVISION}" \
-      org.opencontainers.image.description="amd64 Docker runtime for ProAudio Player native dev"
+      io.proaudio.native.revision="${NATIVE_REVISION}" \
+      io.proaudio.webui.revision="${WEBUI_REVISION}" \
+      org.opencontainers.image.description="amd64 Docker runtime for ProAudio Player"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Europe/Kyiv \
@@ -53,10 +95,6 @@ RUN apt-get update \
        ca-certificates \
        curl \
        dbus \
-       gmediarender \
-       gstreamer1.0-libav \
-       gstreamer1.0-plugins-good \
-       gstreamer1.0-pulseaudio \
        iproute2 \
        libspa-0.2-modules \
        mpc \
@@ -83,41 +121,40 @@ COPY --from=native-builder \
      /build/proaudio-player-native/target/release/proaudio-player-native \
      /usr/local/bin/proaudio-player-native
 COPY --from=spotifyd-builder /spotifyd-install/bin/spotifyd /usr/local/bin/spotifyd
+COPY --from=webui-builder /build/proaudio-player-webui/dist/ /usr/share/proaudio-player/webui/
 
-COPY sources/proaudio-player-native/config /opt/proaudio-player/defaults
-COPY sources/proaudio-player-native/assets/announcements \
-     /usr/share/proaudio-player/announcements
-COPY sources/proaudio-player-native/scripts/audio-buses.sh \
-     /opt/proaudio-player/scripts/audio-buses.sh
+COPY --from=native-builder /build/proaudio-player-native/config/ /opt/proaudio-player/defaults/
+COPY --from=native-builder /build/proaudio-player-native/assets/announcements/ \
+     /usr/share/proaudio-player/announcements/
+COPY --from=native-builder /build/proaudio-player-native/scripts/audio-buses.sh \
+     /usr/libexec/proaudio-player/audio-buses.sh
+COPY --from=native-builder /build/proaudio-player-native/scripts/proaudio-player-output-watch \
+     /usr/libexec/proaudio-player/proaudio-player-output-watch
+COPY --from=native-builder /build/proaudio-player-native/scripts/proaudio-player-audioctl \
+     /usr/local/bin/proaudio-player-audioctl
 
-COPY sources/proaudio-player-webui/index.html \
-     sources/proaudio-player-webui/manifest.webmanifest \
-     sources/proaudio-player-webui/sw.js \
-     /usr/share/proaudio-player/webui/
-COPY sources/proaudio-player-webui/static /usr/share/proaudio-player/webui/static
-
-COPY sources/proaudio-player-native/config/wireplumber/51-proaudio-soft-mixer.conf \
-     /etc/wireplumber/wireplumber.conf.d/51-proaudio-soft-mixer.conf
-COPY sources/proaudio-player-native/config/avahi/proaudio-linkplay.service \
-     /etc/avahi/services/proaudio-linkplay.service
+COPY --from=native-builder /build/proaudio-player-native/config/wireplumber/ \
+     /etc/wireplumber/wireplumber.conf.d/
+COPY --from=native-builder /build/proaudio-player-native/config/avahi/ \
+     /etc/avahi/services/
 
 COPY docker/proaudio-player-mpris.conf /etc/dbus-1/system.d/proaudio-player-mpris.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/proaudio-player.conf
 COPY docker/docker-entrypoint.sh \
      docker/discover-audio.sh \
      docker/run-audio-buses.sh \
-     docker/watch-audio-output.sh \
      docker/run-service.sh \
      docker/container-healthcheck.sh \
      docker/preflight.sh \
      /usr/local/bin/
 
 RUN chmod 0755 \
-       /opt/proaudio-player/scripts/audio-buses.sh \
+       /usr/libexec/proaudio-player/audio-buses.sh \
+       /usr/libexec/proaudio-player/proaudio-player-output-watch \
+       /usr/local/bin/proaudio-player-audioctl \
        /usr/local/bin/docker-entrypoint.sh \
        /usr/local/bin/discover-audio.sh \
        /usr/local/bin/run-audio-buses.sh \
-       /usr/local/bin/watch-audio-output.sh \
        /usr/local/bin/run-service.sh \
        /usr/local/bin/container-healthcheck.sh \
        /usr/local/bin/preflight.sh \

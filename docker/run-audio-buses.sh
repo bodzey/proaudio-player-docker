@@ -3,14 +3,12 @@ set -euo pipefail
 
 CONFIG_ENV=/etc/proaudio-player-alert/audio.env
 OUTPUT_ENV=/var/lib/proaudio-player-alert/audio-output.env
-TEST_MODULE=""
+BUS_SCRIPT=/usr/libexec/proaudio-player/audio-buses.sh
+READY_FILE="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is not set}/proaudio-player-ready"
 
 cleanup() {
-    rm -f -- "$XDG_RUNTIME_DIR/proaudio-player-ready"
-    /opt/proaudio-player/scripts/audio-buses.sh stop || true
-    if [[ "$TEST_MODULE" =~ ^[0-9]+$ ]]; then
-        pactl unload-module "$TEST_MODULE" >/dev/null 2>&1 || true
-    fi
+    rm -f -- "$READY_FILE"
+    "$BUS_SCRIPT" stop || true
 }
 trap cleanup EXIT INT TERM
 
@@ -23,16 +21,8 @@ set -a
 [[ -f "$OUTPUT_ENV" ]] && source "$OUTPUT_ENV"
 set +a
 
-if [[ "${AUDIO_MODE:-null}" == "null" ]]; then
-    TEST_MODULE="$(pactl load-module module-null-sink \
-        sink_name=proaudio_player_test_output \
-        sink_properties=device.description=proaudio_player_test_output \
-        rate="${SAMPLE_RATE:-48000}" channels=2)"
-    export PHYSICAL_SINK=proaudio_player_test_output
-fi
-
-/opt/proaudio-player/scripts/audio-buses.sh start
-touch "$XDG_RUNTIME_DIR/proaudio-player-ready"
+"$BUS_SCRIPT" start
+touch "$READY_FILE"
 
 while pactl info >/dev/null 2>&1; do
     sleep 2

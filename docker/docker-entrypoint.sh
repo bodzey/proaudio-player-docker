@@ -13,6 +13,11 @@ install -d -o proaudio-player -g proaudio-player -m 0700 \
 install -d -o proaudio-player -g proaudio-player -m 0750 \
     /home/proaudio-player/.local/state/wireplumber
 
+# /run/proaudio-player is a shared ephemeral coordination volume for the main
+# runtime and the isolated DLNA worker. Never carry sockets/locks across starts.
+find "$RUNTIME_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+install -d -o proaudio-player -g proaudio-player -m 0700 "$RUNTIME_DIR"
+
 for config_name in config.yaml audio.env mpd.conf shairport-sync.conf spotifyd.conf; do
     if [[ ! -f "$CONFIG_DIR/$config_name" ]]; then
         source_name="$config_name"

@@ -5,7 +5,6 @@ required=(
     amixer
     busctl
     dbus-daemon
-    gmediarender
     ip
     kill
     mpc
@@ -30,16 +29,22 @@ done
 
 for asset in \
     /usr/share/proaudio-player/webui/index.html \
-    /usr/share/proaudio-player/webui/static/app.js \
-    /usr/share/proaudio-player/webui/static/app.css \
+    /usr/share/proaudio-player/webui/manifest.webmanifest \
     /usr/share/proaudio-player/announcements/alarm_start.mp3 \
     /usr/share/proaudio-player/announcements/alarm_end.mp3 \
-    /usr/share/proaudio-player/announcements/minute_silence.mp3; do
+    /usr/share/proaudio-player/announcements/minute_silence.mp3 \
+    /usr/libexec/proaudio-player/audio-buses.sh \
+    /usr/libexec/proaudio-player/proaudio-player-output-watch; do
     [[ -f "$asset" ]] || {
         echo "Обов'язковий runtime asset відсутній: $asset" >&2
         exit 1
     }
 done
+
+if ! find /usr/share/proaudio-player/webui -mindepth 2 -type f -print -quit | grep -q .; then
+    echo "Web UI build не містить зібраних asset-файлів." >&2
+    exit 1
+fi
 
 proaudio-player-native --version >/dev/null
 spotifyd --version >/dev/null
