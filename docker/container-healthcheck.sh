@@ -28,5 +28,5 @@ done
 
 if is_true "${HEALTHCHECK_HTTP:-true}"; then
     curl --fail --silent --show-error --max-time 3 \
-        "http://127.0.0.1:${HEALTHCHECK_PORT:-8080}/api/v1/health" >/dev/null
+        "http://127.0.0.1:${HEALTHCHECK_PORT:-5371}/api/v1/health" >/dev/null
 fi
