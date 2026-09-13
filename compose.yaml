@@ -20,8 +20,9 @@ services:
       ENABLE_MPD: "${ENABLE_MPD:-true}"
       ENABLE_SPOTIFY: "${ENABLE_SPOTIFY:-true}"
       PROAUDIO_WEBUI_DIR: /usr/share/proaudio-player/webui
+      PROAUDIO_HTTP_PORT: "${PROAUDIO_HTTP_PORT:-5371}"
       HEALTHCHECK_HTTP: "${HEALTHCHECK_HTTP:-true}"
-      HEALTHCHECK_PORT: "${HEALTHCHECK_PORT:-8080}"
+      HEALTHCHECK_PORT: "${HEALTHCHECK_PORT:-5371}"
     volumes:
       - ./docker-data/config:/etc/proaudio-player-alert
       - ./docker-data/data:/var/lib/proaudio-player-alert
