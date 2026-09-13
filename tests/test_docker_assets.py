@@ -189,6 +189,13 @@ def test_healthcheck_validates_complete_native_audio_graph():
     assert "audio-output-watch" in healthcheck
 
 
+def test_fresh_hardware_start_does_not_require_saved_sink_file():
+    dockerctl = (ROOT / "docker/proaudio-player-dockerctl").read_text(encoding="utf-8")
+
+    assert '[[ -f "$OUTPUT_ENV" ]] || return 0' in dockerctl
+    assert 'current="$(saved_sink)"' in dockerctl
+
+
 def test_shell_scripts_parse_with_bash():
     for path in sorted((ROOT / "docker").glob("*.sh")):
         subprocess.run(["bash", "-n", str(path)], check=True)
