@@ -1,22 +1,43 @@
 # ProAudio Player Docker
 
-Docker/Compose runtime для запуску **`proaudio-player-native/dev`** та **`proaudio-player-webui/dev`** на Linux amd64.
+Docker/Compose adapter для запуску актуальних feature-гілок **ProAudio Player Native** і **Web UI** на Linux amd64.
 
-Цей репозиторій містить тільки Docker-адаптер. Код плеєра й Web UI не дублюється і не змінюється тут: обидва проєкти підключені окремими Git submodule та відстежують гілку `dev`.
+Цей репозиторій не містить копій коду плеєра або інтерфейсу. Обидва проєкти підключені як окремі Git submodule, а Docker відповідає тільки за build/runtime integration.
 
-## Джерела
+## Підключені джерела
 
 ```text
-sources/proaudio-player-native   -> bodzey/proaudio-player-native (dev)
-sources/proaudio-player-webui    -> bodzey/proaudio-player-webui  (dev)
+sources/proaudio-player-native
+  -> bodzey/proaudio-player-native
+  -> feature/universal-audio-backend
+
+sources/proaudio-player-webui
+  -> bodzey/proaudio-player-webui
+  -> feature/universal-audio-backend
 ```
 
-Native daemon збирається Rust toolchain 1.88 у multi-stage Docker build. Web UI не компілюється в binary: його статичні файли встановлюються в `/usr/share/proaudio-player/webui`, звідки їх віддає native API.
+Gitlink-и у Docker-репозиторії фіксують конкретні перевірені commit SHA, тому звичайна збірка відтворювана. Поле `branch` у `.gitmodules` використовується тільки командою `sync-sources`, щоб явно підтягнути нові commit із відповідних feature-гілок.
+
+Docker не залежить від внутрішньої структури `src/` Web UI: frontend збирається його власним контрактом `npm ci` + `npm run build`, а в runtime переноситься тільки результат `dist/`. Native аналогічно збирається як повний Rust checkout через `cargo build --locked --release`.
+
+## Архітектура runtime
+
+Основний контейнер містить:
+
+- `proaudio-player-native`;
+- зібраний Web UI;
+- PipeWire + pipewire-pulse + WirePlumber;
+- MPD, Shairport Sync і spotifyd;
+- системний/session D-Bus та Avahi;
+- native `audio-buses.sh` і `proaudio-player-output-watch` без Docker-копій їхньої логіки.
+
+DLNA decoder worker (`gmediarender`) винесений у мінімальний допоміжний контейнер. Він не має host networking і не рекламується у LAN. Worker живе в приватній Docker-мережі на `169.254.253.1:49494` — це endpoint, який очікує `feature/universal-audio-backend`. Аудіо worker передає через спільний Unix socket `pipewire-pulse` без доступу до `/dev/snd`.
 
 ## Клонування
 
 ```bash
-git clone --branch dev --recurse-submodules git@github.com:bodzey/proaudio_player_docker.git
+git clone --branch feature/universal-audio-backend --recurse-submodules \
+  git@github.com:bodzey/proaudio_player_docker.git
 cd proaudio_player_docker
 chmod +x docker/proaudio-player-dockerctl
 ```
@@ -24,16 +45,12 @@ chmod +x docker/proaudio-player-dockerctl
 Для вже існуючого clone:
 
 ```bash
-git checkout dev
-git pull
+git fetch origin
+git switch feature/universal-audio-backend
+git pull --ff-only
+
 git submodule sync --recursive
-git submodule update --init
-```
-
-Оновити обидва джерела до поточного стану їхніх `dev`-гілок:
-
-```bash
-./docker/proaudio-player-dockerctl sync-dev
+git submodule update --init --recursive
 ```
 
 Перевірити зафіксовані ревізії:
@@ -41,6 +58,14 @@ git submodule update --init
 ```bash
 ./docker/proaudio-player-dockerctl revisions
 ```
+
+Оновити submodule до поточного стану гілок, записаних у `.gitmodules`:
+
+```bash
+./docker/proaudio-player-dockerctl sync-sources
+```
+
+Після такого оновлення gitlink-и навмисно залишаються зміненими у working tree. Їх треба перевірити й окремо закомітити у Docker-репозиторій — Docker не стежить за floating HEAD під час звичайної збірки.
 
 ## Перший запуск без фізичного аудіопристрою
 
@@ -50,7 +75,7 @@ git submodule update --init
 ./docker/proaudio-player-dockerctl status
 ```
 
-`up-test` створює внутрішній null sink, тому контейнер можна повністю перевірити на amd64 сервері без `/dev/snd`.
+`up-test` не потребує `/dev/snd`. Native audio graph використовує штатний `PARKING_SINK`, тому тестовий режим не має окремої Docker-реалізації аудіотракту.
 
 Web UI та API:
 
@@ -67,7 +92,7 @@ http://IP_СЕРВЕРА:8080/api/v1/health
 ./docker/proaudio-player-dockerctl up-hardware
 ```
 
-Контейнер отримує тільки `/dev/snd` і read-only `/run/udev`. PipeWire автоматично вибере фізичний sink; USB-вихід має пріоритет відповідно до `audio-buses.sh` native-проєкту.
+Контейнер отримує тільки `/dev/snd` і read-only `/run/udev`. Вибір, PARKING fallback, hot-plug reconciliation та unity-policy виконує той самий `proaudio-player-output-watch`, що постачається native-проєктом.
 
 За потреби вибрати вихід вручну:
 
@@ -76,7 +101,11 @@ http://IP_СЕРВЕРА:8080/api/v1/health
 ./docker/proaudio-player-dockerctl up-hardware
 ```
 
-Вибір зберігається в `docker-data/data/audio-output.env`. Це той самий runtime-контракт, який використовує native API. Зміна виходу через Web UI також застосовується контейнером без systemd завдяки `audio-output-watch`.
+Вибір зберігається у:
+
+```text
+docker-data/data/audio-output.env
+```
 
 ## Дані
 
@@ -86,12 +115,14 @@ docker-data/data/     native state, settings, MPD state, machine-id, selected au
 docker-data/music/    локальна музична бібліотека
 ```
 
-`machine-id` зберігається в persistent data, тому UPnP/4STREAM identity не змінюється після rebuild контейнера.
+`machine-id` зберігається в persistent data, тому device identity не змінюється після rebuild контейнера.
+
+Окремий named volume `proaudio-runtime` використовується тільки для runtime Unix sockets між основним контейнером та DLNA worker; його вміст очищається при старті основного runtime і не є persistent state.
 
 ## Корисні команди
 
 ```bash
-./docker/proaudio-player-dockerctl sync-dev
+./docker/proaudio-player-dockerctl sync-sources
 ./docker/proaudio-player-dockerctl revisions
 ./docker/proaudio-player-dockerctl status
 ./docker/proaudio-player-dockerctl logs
@@ -106,7 +137,9 @@ docker-data/music/    локальна музична бібліотека
 
 ## Мережа
 
-Compose використовує `network_mode: host`. Це навмисно: Spotify Connect, AirPlay/Avahi, DLNA/UPnP, SSDP та LinkPlay/4STREAM discovery мають працювати без окремого переліку проброшених multicast/UDP портів.
+Основний контейнер використовує `network_mode: host`, оскільки Spotify Connect, AirPlay/Avahi, native DLNA/UPnP, SSDP та LinkPlay/4STREAM discovery потребують коректної multicast/LAN поведінки.
+
+`gmediarender` не використовує host network. Його єдина мережа — Docker bridge `dlna-private`; адреса `169.254.253.1` доступна основному host-network runtime через Linux route до Docker bridge, але worker не стає окремим renderer у фізичній LAN.
 
 ## Тести Docker-адаптера
 
@@ -114,8 +147,16 @@ Compose використовує `network_mode: host`. Це навмисно: Sp
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements-test.txt
-git submodule update --init
+git submodule update --init --recursive
 pytest -q
+```
+
+Повна acceptance-перевірка:
+
+```bash
+./docker/proaudio-player-dockerctl up-test
+curl -fsS http://127.0.0.1:8080/api/v1/health
+./docker/proaudio-player-dockerctl status
 ```
 
 Докладніша схема runtime: [docs/DOCKER.md](docs/DOCKER.md).

@@ -12,8 +12,10 @@ WEBUI=sources/proaudio-player-webui
 OUTPUT_ENV=docker-data/data/audio-output.env
 
 require_sources() {
-    if [[ ! -f "$NATIVE/Cargo.toml" || ! -f "$WEBUI/index.html" ]]; then
-        echo "Dev submodules не ініціалізовано." >&2
+    if [[ ! -f "$NATIVE/Cargo.toml" \
+        || ! -f "$WEBUI/package.json" \
+        || ! -f "$WEBUI/package-lock.json" ]]; then
+        echo "Source submodules не ініціалізовано." >&2
         echo "Виконайте: git submodule update --init sources/proaudio-player-native sources/proaudio-player-webui" >&2
         exit 1
     fi
@@ -44,21 +46,28 @@ initialize() {
     echo "Docker runtime ініціалізовано."
 }
 
-sync_dev() {
+configured_branch() {
+    local module="$1"
+    git config -f .gitmodules --get "submodule.${module}.branch" 2>/dev/null || printf '%s' '<pinned>'
+}
+
+sync_sources() {
     git submodule sync --recursive
-    git submodule update --init --remote sources/proaudio-player-native sources/proaudio-player-webui
-    echo "Оновлено submodules до поточних dev-гілок:"
+    git submodule update --init sources/proaudio-player-native sources/proaudio-player-webui
+    git submodule update --remote --checkout sources/proaudio-player-native sources/proaudio-player-webui
+    echo "Оновлено submodules до гілок, заданих у .gitmodules:"
     revisions
+    echo "Зафіксуйте змінені gitlink-и commit-ом Docker-репозиторію після перевірки."
 }
 
 revisions() {
     require_sources
     printf 'native  %s  (%s)\n' \
         "$(git -C "$NATIVE" rev-parse --short=12 HEAD)" \
-        "$(git -C "$NATIVE" branch --show-current || true)"
+        "$(configured_branch sources/proaudio-player-native)"
     printf 'webui   %s  (%s)\n' \
         "$(git -C "$WEBUI" rev-parse --short=12 HEAD)" \
-        "$(git -C "$WEBUI" branch --show-current || true)"
+        "$(configured_branch sources/proaudio-player-webui)"
 }
 
 saved_sink() {
@@ -81,8 +90,8 @@ select_audio() {
         exit 1
     }
     initialize
-    echo "Збирання amd64 образу та пошук аудіовиходів..."
-    "${hardware[@]}" build
+    echo "Збирання amd64 runtime та пошук аудіовиходів..."
+    compose_with_revisions "${hardware[@]}" build "$SERVICE"
 
     local discovery_output
     if ! discovery_output="$("${hardware[@]}" run -T --rm --no-deps \
@@ -136,6 +145,7 @@ select_audio() {
 
 compose_with_revisions() {
     require_sources
+    APP_VERSION="${APP_VERSION:-$(git branch --show-current 2>/dev/null || printf '%s' docker)}" \
     NATIVE_REVISION="$(git -C "$NATIVE" rev-parse HEAD)" \
     WEBUI_REVISION="$(git -C "$WEBUI" rev-parse HEAD)" \
     "$@"
@@ -145,8 +155,8 @@ case "${1:-}" in
     init)
         initialize
         ;;
-    sync-dev)
-        sync_dev
+    sync-sources|sync-dev)
+        sync_sources
         ;;
     revisions|core-rev)
         revisions
@@ -165,7 +175,7 @@ case "${1:-}" in
         if [[ -n "$current" ]]; then
             echo "Збережений аудіовихід: $current"
         else
-            echo "Аудіовихід не зафіксовано; PipeWire автоматично вибере фізичний sink."
+            echo "Аудіовихід не зафіксовано; native output policy вибере доступний фізичний sink."
         fi
         compose_with_revisions "${hardware[@]}" up -d --build
         ;;
@@ -181,7 +191,7 @@ case "${1:-}" in
             -c /etc/supervisor/conf.d/proaudio-player.conf status
         ;;
     logs)
-        "${base[@]}" logs -f --tail "${2:-150}" "$SERVICE"
+        "${base[@]}" logs -f --tail "${2:-150}"
         ;;
     sinks)
         "${base[@]}" exec -u proaudio-player "$SERVICE" pactl list short sinks
@@ -213,7 +223,7 @@ case "${1:-}" in
         "${base[@]}" exec "$SERVICE" bash
         ;;
     *)
-        echo "Використання: docker/proaudio-player-dockerctl {init|sync-dev|revisions|select-audio|up-test|up-hardware|down|status|logs [рядки]|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
+        echo "Використання: docker/proaudio-player-dockerctl {init|sync-sources|revisions|select-audio|up-test|up-hardware|down|status|logs [рядки]|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
         exit 2
         ;;
 esac
