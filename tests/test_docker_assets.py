@@ -42,8 +42,11 @@ def test_default_compose_keeps_player_on_host_network():
     assert service["build"]["target"] == "runtime"
     assert service["network_mode"] == "host"
     assert service["environment"]["AUDIO_MODE"] == "${AUDIO_MODE:-null}"
+    assert service["environment"]["PROAUDIO_HTTP_PORT"] == "${PROAUDIO_HTTP_PORT:-5371}"
+    assert service["environment"]["HEALTHCHECK_PORT"] == "${HEALTHCHECK_PORT:-5371}"
     assert service["restart"] == "unless-stopped"
     assert "devices" not in service
+    assert "ports" not in service
     assert "proaudio-runtime:/run/proaudio-player" in service["volumes"]
 
 
@@ -179,6 +182,7 @@ def test_healthcheck_validates_complete_native_audio_graph():
     healthcheck = (ROOT / "docker/container-healthcheck.sh").read_text(encoding="utf-8")
 
     assert "/api/v1/health" in healthcheck
+    assert "${HEALTHCHECK_PORT:-5371}" in healthcheck
     for sink in (
         "proaudio_player_music",
         "proaudio_player_alert",
@@ -187,6 +191,17 @@ def test_healthcheck_validates_complete_native_audio_graph():
     ):
         assert sink in healthcheck
     assert "audio-output-watch" in healthcheck
+
+
+def test_docker_runtime_applies_http_port_without_changing_native_source():
+    entrypoint = (ROOT / "docker/docker-entrypoint.sh").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert 'HTTP_PORT="${PROAUDIO_HTTP_PORT:-5371}"' in entrypoint
+    assert "api|web" in entrypoint
+    assert '"$CONFIG_DIR/config.yaml"' in entrypoint
+    assert "PROAUDIO_HTTP_PORT=5371" in dockerfile
+    assert "HEALTHCHECK_PORT=5371" in dockerfile
 
 
 def test_fresh_hardware_start_does_not_require_saved_sink_file():
