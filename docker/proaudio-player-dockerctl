@@ -71,7 +71,8 @@ revisions() {
 }
 
 saved_sink() {
-    sed -n 's/^PHYSICAL_SINK=//p' "$OUTPUT_ENV" 2>/dev/null | tail -n 1
+    [[ -f "$OUTPUT_ENV" ]] || return 0
+    sed -n 's/^PHYSICAL_SINK=//p' "$OUTPUT_ENV" | tail -n 1
 }
 
 save_sink() {
