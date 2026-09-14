@@ -8,7 +8,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 NATIVE = ROOT / "sources/proaudio-player-native"
 WEBUI = ROOT / "sources/proaudio-player-webui"
-FEATURE = "feature/universal-audio-backend"
+SOURCE_BRANCH = "dev"
 
 
 def service_from(path: str, name: str = "proaudio-player"):
@@ -16,14 +16,14 @@ def service_from(path: str, name: str = "proaudio-player"):
     return compose["services"][name]
 
 
-def test_sources_are_separate_feature_submodules():
+def test_sources_are_separate_dev_submodules():
     modules = (ROOT / ".gitmodules").read_text(encoding="utf-8")
 
     assert "path = sources/proaudio-player-native" in modules
     assert "url = ../proaudio-player-native.git" in modules
     assert "path = sources/proaudio-player-webui" in modules
     assert "url = ../proaudio-player-webui.git" in modules
-    assert modules.count(f"branch = {FEATURE}") == 2
+    assert modules.count(f"branch = {SOURCE_BRANCH}") == 2
     assert "sources/proaudio-player]" not in modules
 
     for path in ("sources/proaudio-player-native", "sources/proaudio-player-webui"):
@@ -220,7 +220,7 @@ def test_shell_scripts_parse_with_bash():
     )
 
 
-def test_expected_feature_source_assets_exist():
+def test_expected_dev_source_assets_exist():
     assert (NATIVE / "Cargo.toml").is_file()
     assert (NATIVE / "config/config.yaml.example").is_file()
     assert (NATIVE / "config/audio.env.example").is_file()
