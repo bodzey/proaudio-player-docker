@@ -65,7 +65,7 @@ ENTRYPOINT ["/usr/local/bin/run-dlna-worker.sh"]
 
 FROM debian:trixie-slim AS runtime
 
-ARG APP_VERSION=feature/universal-audio-backend
+ARG APP_VERSION=dev
 ARG NATIVE_REVISION=unknown
 ARG WEBUI_REVISION=unknown
 
