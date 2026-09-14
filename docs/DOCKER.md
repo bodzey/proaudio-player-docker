@@ -1,11 +1,11 @@
 # Docker runtime architecture
 
-`proaudio_player_docker/feature/universal-audio-backend` є integration layer між:
+`proaudio_player_docker/dev` є integration layer між:
 
 ```text
-proaudio-player-native/feature/universal-audio-backend
+proaudio-player-native/dev
                          +
-proaudio-player-webui/feature/universal-audio-backend
+proaudio-player-webui/dev
                          |
                          v
                 Docker multi-stage build
