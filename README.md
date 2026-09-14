@@ -1,6 +1,6 @@
 # ProAudio Player Docker
 
-Docker/Compose adapter для запуску актуальних feature-гілок **ProAudio Player Native** і **Web UI** на Linux amd64.
+Docker/Compose adapter для запуску актуальних гілок `dev` **ProAudio Player Native** і **Web UI** на Linux amd64.
 
 Цей репозиторій не містить копій коду плеєра або інтерфейсу. Обидва проєкти підключені як окремі Git submodule, а Docker відповідає тільки за build/runtime integration.
 
@@ -9,14 +9,14 @@ Docker/Compose adapter для запуску актуальних feature-гіл
 ```text
 sources/proaudio-player-native
   -> bodzey/proaudio-player-native
-  -> feature/universal-audio-backend
+  -> dev
 
 sources/proaudio-player-webui
   -> bodzey/proaudio-player-webui
-  -> feature/universal-audio-backend
+  -> dev
 ```
 
-Gitlink-и у Docker-репозиторії фіксують конкретні перевірені commit SHA, тому звичайна збірка відтворювана. Поле `branch` у `.gitmodules` використовується тільки командою `sync-sources`, щоб явно підтягнути нові commit із відповідних feature-гілок.
+Gitlink-и у Docker-репозиторії фіксують конкретні перевірені commit SHA, тому звичайна збірка відтворювана. Поле `branch` у `.gitmodules` використовується тільки командою `sync-sources`, щоб явно підтягнути нові commit із відповідних гілок `dev`.
 
 Docker не залежить від внутрішньої структури `src/` Web UI: frontend збирається його власним контрактом `npm ci` + `npm run build`, а в runtime переноситься тільки результат `dist/`. Native аналогічно збирається як повний Rust checkout через `cargo build --locked --release`.
 
@@ -31,12 +31,12 @@ Docker не залежить від внутрішньої структури `s
 - системний/session D-Bus та Avahi;
 - native `audio-buses.sh` і `proaudio-player-output-watch` без Docker-копій їхньої логіки.
 
-DLNA decoder worker (`gmediarender`) винесений у мінімальний допоміжний контейнер. Він не має host networking і не рекламується у LAN. Worker живе в приватній Docker-мережі на `169.254.253.1:49494` — це endpoint, який очікує `feature/universal-audio-backend`. Аудіо worker передає через спільний Unix socket `pipewire-pulse` без доступу до `/dev/snd`.
+DLNA decoder worker (`gmediarender`) винесений у мінімальний допоміжний контейнер. Він не має host networking і не рекламується у LAN. Worker живе в приватній Docker-мережі на `169.254.253.1:49494` — це endpoint, який очікує поточний native backend. Аудіо worker передає через спільний Unix socket `pipewire-pulse` без доступу до `/dev/snd`.
 
 ## Клонування
 
 ```bash
-git clone --branch feature/universal-audio-backend --recurse-submodules \
+git clone --branch dev --recurse-submodules \
   git@github.com:bodzey/proaudio-player-docker.git
 cd proaudio-player-docker
 chmod +x docker/proaudio-player-dockerctl
@@ -46,7 +46,7 @@ chmod +x docker/proaudio-player-dockerctl
 
 ```bash
 git fetch origin
-git switch feature/universal-audio-backend
+git switch dev
 git pull --ff-only
 
 git submodule sync --recursive
