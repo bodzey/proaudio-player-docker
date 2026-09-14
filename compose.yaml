@@ -9,7 +9,7 @@ services:
         NATIVE_REVISION: "${NATIVE_REVISION:-unknown}"
         WEBUI_REVISION: "${WEBUI_REVISION:-unknown}"
         SPOTIFYD_VERSION: "${SPOTIFYD_VERSION:-0.4.2}"
-    image: "proaudio-player-native:${IMAGE_TAG:-universal-audio-backend}"
+    image: "proaudio-player-native:${IMAGE_TAG:-dev}"
     container_name: proaudio-player
     restart: unless-stopped
     network_mode: host
@@ -35,7 +35,7 @@ services:
     build:
       context: .
       target: dlna-worker
-    image: "proaudio-player-dlna-worker:${IMAGE_TAG:-universal-audio-backend}"
+    image: "proaudio-player-dlna-worker:${IMAGE_TAG:-dev}"
     container_name: proaudio-player-dlna-worker
     restart: unless-stopped
     depends_on:
