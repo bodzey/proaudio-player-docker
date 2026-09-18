@@ -36,7 +36,7 @@ package.json + package-lock.json
 
 Runtime знає тільки про `dist/`, а не про `src/`, назви bundle-файлів, framework або CSS pipeline. Це дозволяє змінювати frontend без правок Dockerfile, доки Web UI зберігає стандартний build contract.
 
-Git submodule зафіксовані на конкретних SHA для reproducible build. `.gitmodules` одночасно містить upstream branch, який використовується лише явною командою `sync-sources`.
+Gitlink-и є лише bootstrap snapshot. У `dev` фактичний build source — поточний checkout кожного submodule після явного `sync-sources`; оновлювати gitlink commit у Docker-репозиторії після кожного upstream commit не потрібно. `.gitmodules` задає upstream branch і приховує очікувану різницю HEAD від superproject status.
 
 ## Runtime layout
 
@@ -143,6 +143,10 @@ docker-data/data   -> /var/lib/proaudio-player-alert
 docker-data/music  -> /srv/music
 ```
 
+У `docker-data/config` persistent є лише user-owned `config.yaml`, `alerts-token` та optional `audio.env.override`. Receiver-конфіги MPD/AirPlay/Spotify беруться безпосередньо з `/opt/proaudio-player/defaults`, який запаковується з поточного native checkout.
+
+Ефективний `audio.env` створюється при старті у `/run/proaudio-player/audio.env`: базою є актуальний `config/audio.env.example` native, а explicit `audio.env.override` замінює лише вказані ключі. Тому нові native audio-policy keys автоматично з'являються після rebuild, не перетворюючи Docker adapter на окреме джерело audio policy.
+
 Named volume:
 
 ```text
@@ -158,7 +162,7 @@ proaudio-runtime -> /run/proaudio-player
 ./docker/proaudio-player-dockerctl revisions
 ```
 
-`sync-sources` читає branch policy з `.gitmodules` і виконує `git submodule update --remote --checkout`. Це свідома операція розробника. Звичайний clone/build використовує gitlink SHA і не плаває за HEAD upstream-гілок.
+`sync-sources` читає branch policy з `.gitmodules` і виконує `git submodule update --remote --checkout`. Після цього `build`, `up-test` і `up-hardware` збирають саме поточні HEAD checkout-ів та передають їх SHA в OCI labels. Gitlink-и лишаються bootstrap snapshot і не потребують окремого commit після кожного оновлення source.
 
 ## Verification
 
