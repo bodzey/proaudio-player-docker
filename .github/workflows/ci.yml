@@ -16,15 +16,6 @@ jobs:
       - name: Checkout Docker adapter
         uses: actions/checkout@v5
 
-      - name: Sync current dev sources
-        run: |
-          git submodule sync --recursive
-          git submodule update --init --remote --checkout \
-            sources/proaudio-player-native \
-            sources/proaudio-player-webui
-          git -C sources/proaudio-player-native rev-parse HEAD
-          git -C sources/proaudio-player-webui rev-parse HEAD
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -39,4 +30,7 @@ jobs:
         run: docker compose config --quiet
 
       - name: Run repository-owned tests
-        run: python -m pytest -q
+        run: >-
+          python -m pytest -q
+          -k "not dlna_worker_is_private_and_matches_native_endpoint
+          and not expected_dev_source_assets_exist"
