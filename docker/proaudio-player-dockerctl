@@ -29,16 +29,9 @@ initialize() {
         install -m 0644 "$NATIVE/config/config.yaml.example" \
             docker-data/config/config.yaml
     fi
-    if [[ ! -f docker-data/config/audio.env ]]; then
-        install -m 0644 "$NATIVE/config/audio.env.example" \
-            docker-data/config/audio.env
+    if [[ ! -f docker-data/config/audio.env.override ]]; then
+        install -m 0644 /dev/null docker-data/config/audio.env.override
     fi
-    for config_name in mpd.conf shairport-sync.conf spotifyd.conf; do
-        if [[ ! -f "docker-data/config/$config_name" ]]; then
-            install -m 0644 "$NATIVE/config/$config_name" \
-                "docker-data/config/$config_name"
-        fi
-    done
     if [[ ! -f docker-data/config/alerts-token ]]; then
         install -m 0600 /dev/null docker-data/config/alerts-token
     fi
@@ -55,9 +48,9 @@ sync_sources() {
     git submodule sync --recursive
     git submodule update --init sources/proaudio-player-native sources/proaudio-player-webui
     git submodule update --remote --checkout sources/proaudio-player-native sources/proaudio-player-webui
-    echo "Оновлено submodules до гілок, заданих у .gitmodules:"
+    echo "Оновлено source checkout-и до гілок, заданих у .gitmodules:"
     revisions
-    echo "Зафіксуйте змінені gitlink-и commit-ом Docker-репозиторію після перевірки."
+    echo "Gitlink-и Docker-репозиторію є лише bootstrap snapshot; для dev їх оновлювати commit-ом не потрібно."
 }
 
 revisions() {
@@ -162,6 +155,10 @@ case "${1:-}" in
     revisions|core-rev)
         revisions
         ;;
+    build)
+        initialize
+        compose_with_revisions "${base[@]}" build
+        ;;
     up-test)
         initialize
         compose_with_revisions "${base[@]}" up -d --build
@@ -224,7 +221,7 @@ case "${1:-}" in
         "${base[@]}" exec "$SERVICE" bash
         ;;
     *)
-        echo "Використання: docker/proaudio-player-dockerctl {init|sync-sources|revisions|select-audio|up-test|up-hardware|down|status|logs [рядки]|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
+        echo "Використання: docker/proaudio-player-dockerctl {init|sync-sources|revisions|build|select-audio|up-test|up-hardware|down|status|logs [рядки]|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
         exit 2
         ;;
 esac

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONFIG_ENV=/etc/proaudio-player-alert/audio.env
+CONFIG_ENV="${PROAUDIO_AUDIO_ENV:-/run/proaudio-player/audio.env}"
 OUTPUT_ENV=/var/lib/proaudio-player-alert/audio-output.env
 BUS_SCRIPT=/usr/libexec/proaudio-player/audio-buses.sh
 READY_FILE="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is not set}/proaudio-player-ready"

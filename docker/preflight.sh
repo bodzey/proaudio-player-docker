@@ -34,7 +34,11 @@ for asset in \
     /usr/share/proaudio-player/announcements/alarm_end.mp3 \
     /usr/share/proaudio-player/announcements/minute_silence.mp3 \
     /usr/libexec/proaudio-player/audio-buses.sh \
-    /usr/libexec/proaudio-player/proaudio-player-output-watch; do
+    /usr/libexec/proaudio-player/proaudio-player-output-watch \
+    /opt/proaudio-player/defaults/audio.env.example \
+    /opt/proaudio-player/defaults/mpd.conf \
+    /opt/proaudio-player/defaults/shairport-sync.conf \
+    /opt/proaudio-player/defaults/spotifyd.conf; do
     [[ -f "$asset" ]] || {
         echo "Обов'язковий runtime asset відсутній: $asset" >&2
         exit 1

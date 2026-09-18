@@ -24,6 +24,7 @@ def test_sources_are_separate_dev_submodules():
     assert "path = sources/proaudio-player-webui" in modules
     assert "url = ../proaudio-player-webui.git" in modules
     assert modules.count(f"branch = {SOURCE_BRANCH}") == 2
+    assert modules.count("ignore = all") == 2
     assert "sources/proaudio-player]" not in modules
 
     for path in ("sources/proaudio-player-native", "sources/proaudio-player-webui"):
@@ -33,6 +34,14 @@ def test_sources_are_separate_dev_submodules():
             text=True,
         )
         assert stage.startswith("160000 ")
+
+
+def test_dev_source_updates_do_not_require_gitlink_commits():
+    dockerctl = (ROOT / "docker/proaudio-player-dockerctl").read_text(encoding="utf-8")
+
+    assert "git submodule update --remote --checkout" in dockerctl
+    assert "bootstrap snapshot" in dockerctl
+    assert "Зафіксуйте змінені gitlink-и" not in dockerctl
 
 
 def test_default_compose_keeps_player_on_host_network():
@@ -109,6 +118,26 @@ def test_runtime_packages_native_policy_instead_of_docker_fork():
     assert "/usr/libexec/proaudio-player/audio-buses.sh" in runtime
     assert "/usr/libexec/proaudio-player/proaudio-player-output-watch" in runtime
     assert not (ROOT / "docker/watch-audio-output.sh").exists()
+
+
+def test_runtime_uses_current_native_defaults_with_explicit_audio_overrides():
+    entrypoint = (ROOT / "docker/docker-entrypoint.sh").read_text(encoding="utf-8")
+    buses = (ROOT / "docker/run-audio-buses.sh").read_text(encoding="utf-8")
+    supervisor = (ROOT / "docker/supervisord.conf").read_text(encoding="utf-8")
+    dockerctl = (ROOT / "docker/proaudio-player-dockerctl").read_text(encoding="utf-8")
+
+    assert 'DEFAULTS_DIR=/opt/proaudio-player/defaults' in entrypoint
+    assert 'audio.env.override' in entrypoint
+    assert '"$DEFAULTS_DIR/audio.env.example"' in entrypoint
+    assert 'EFFECTIVE_AUDIO_ENV="$RUNTIME_DIR/audio.env"' in entrypoint
+    assert '/run/proaudio-player/audio.env' in buses
+    assert 'AUDIO_ENV="/run/proaudio-player/audio.env"' in supervisor
+    assert 'PROAUDIO_AUDIO_ENV="/run/proaudio-player/audio.env"' in supervisor
+    assert '/opt/proaudio-player/defaults/mpd.conf' in supervisor
+    assert '/opt/proaudio-player/defaults/shairport-sync.conf' in supervisor
+    assert '/opt/proaudio-player/defaults/spotifyd.conf' in supervisor
+    assert 'docker-data/config/audio.env.override' in dockerctl
+    assert 'docker-data/config/audio.env"' not in dockerctl
 
 
 def test_runtime_contains_native_external_command_contract():

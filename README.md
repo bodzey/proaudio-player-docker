@@ -16,7 +16,7 @@ sources/proaudio-player-webui
   -> dev
 ```
 
-Gitlink-и у Docker-репозиторії фіксують конкретні перевірені commit SHA, тому звичайна збірка відтворювана. Поле `branch` у `.gitmodules` використовується тільки командою `sync-sources`, щоб явно підтягнути нові commit із відповідних гілок `dev`.
+Gitlink-и залишаються лише bootstrap snapshot, потрібним формату Git submodule. Для `dev` вони не є версією збірки: `sync-sources` явно оновлює checkout-и до гілок із `.gitmodules`, а Docker завжди збирає фактичні HEAD цих checkout-ів. Різниця між gitlink і поточним HEAD навмисно ігнорується superproject-ом, тому після оновлення source-коду не потрібно комітити Docker-репозиторій.
 
 Docker не залежить від внутрішньої структури `src/` Web UI: frontend збирається його власним контрактом `npm ci` + `npm run build`, а в runtime переноситься тільки результат `dist/`. Native аналогічно збирається як повний Rust checkout через `cargo build --locked --release`.
 
@@ -51,6 +51,7 @@ git pull --ff-only
 
 git submodule sync --recursive
 git submodule update --init --recursive
+./docker/proaudio-player-dockerctl sync-sources
 ```
 
 Перевірити зафіксовані ревізії:
@@ -65,7 +66,7 @@ git submodule update --init --recursive
 ./docker/proaudio-player-dockerctl sync-sources
 ```
 
-Після такого оновлення gitlink-и навмисно залишаються зміненими у working tree. Їх треба перевірити й окремо закомітити у Docker-репозиторій — Docker не стежить за floating HEAD під час звичайної збірки.
+Після `sync-sources` нічого в Docker-репозиторії комітити не потрібно. Для перевірки конкретного складу image використовуйте `revisions`; SHA фактичних checkout-ів також записуються в OCI labels під час build.
 
 ## Перший запуск без фізичного аудіопристрою
 
@@ -112,10 +113,12 @@ docker-data/data/audio-output.env
 ## Дані
 
 ```text
-docker-data/config/   config.yaml, audio.env, MPD/AirPlay/Spotify configs, alerts-token
+docker-data/config/   config.yaml, alerts-token, optional audio.env.override
 docker-data/data/     native state, settings, MPD state, machine-id, selected audio output
 docker-data/music/    локальна музична бібліотека
 ```
+
+`audio.env`, `mpd.conf`, `shairport-sync.conf` і `spotifyd.conf` не є Docker-owned persistent copies. Контейнер бере їх із `config/` саме того native submodule, який був зібраний. Для точкових локальних змін audio policy використовується лише `docker-data/config/audio.env.override`; відсутні там ключі автоматично беруться з актуального native default.
 
 `machine-id` зберігається в persistent data, тому device identity не змінюється після rebuild контейнера.
 
@@ -126,6 +129,7 @@ docker-data/music/    локальна музична бібліотека
 ```bash
 ./docker/proaudio-player-dockerctl sync-sources
 ./docker/proaudio-player-dockerctl revisions
+./docker/proaudio-player-dockerctl build
 ./docker/proaudio-player-dockerctl status
 ./docker/proaudio-player-dockerctl logs
 ./docker/proaudio-player-dockerctl sinks
