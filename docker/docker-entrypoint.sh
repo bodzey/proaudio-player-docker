@@ -19,14 +19,56 @@ install -d -o proaudio-player -g proaudio-player -m 0750 \
 find "$RUNTIME_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 install -d -o proaudio-player -g proaudio-player -m 0700 "$RUNTIME_DIR"
 
-for config_name in config.yaml audio.env mpd.conf shairport-sync.conf spotifyd.conf; do
-    if [[ ! -f "$CONFIG_DIR/$config_name" ]]; then
-        source_name="$config_name"
-        [[ "$config_name" == "config.yaml" ]] && source_name=config.yaml.example
-        [[ "$config_name" == "audio.env" ]] && source_name=audio.env.example
-        install -m 0644 "$DEFAULTS_DIR/$source_name" "$CONFIG_DIR/$config_name"
-    fi
-done
+if [[ ! -f "$CONFIG_DIR/config.yaml" ]]; then
+    install -m 0644 "$DEFAULTS_DIR/config.yaml.example" "$CONFIG_DIR/config.yaml"
+fi
+if [[ ! -f "$CONFIG_DIR/audio.env.override" ]]; then
+    install -m 0644 /dev/null "$CONFIG_DIR/audio.env.override"
+fi
+
+# audio.env is generated from the exact native revision packaged in this image.
+# Persistent Docker state carries only explicit KEY=VALUE overrides, so newly
+# introduced native audio-policy keys appear automatically after a rebuild.
+EFFECTIVE_AUDIO_ENV="$RUNTIME_DIR/audio.env"
+AUDIO_OVERRIDE="$CONFIG_DIR/audio.env.override"
+awk '
+function assignment(line, key) {
+    sub(/^[[:space:]]+/, "", line)
+    sub(/[[:space:]]+$/, "", line)
+    if (line == "" || line ~ /^#/) return ""
+    if (line !~ /^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/) {
+        print "Некоректний рядок audio.env.override: " line > "/dev/stderr"
+        failed = 1
+        return ""
+    }
+    key = line
+    sub(/[[:space:]]*=.*/, "", key)
+    return key
+}
+FNR == NR {
+    key = assignment($0)
+    if (key != "") {
+        if (!(key in seen)) order[++count] = key
+        seen[key] = 1
+        value[key] = $0
+    }
+    next
+}
+{
+    key = assignment($0)
+    if (key != "") {
+        if (!(key in seen)) order[++count] = key
+        seen[key] = 1
+        value[key] = $0
+    }
+}
+END {
+    if (failed) exit 2
+    for (i = 1; i <= count; i++) print value[order[i]]
+}
+' "$DEFAULTS_DIR/audio.env.example" "$AUDIO_OVERRIDE" >"$EFFECTIVE_AUDIO_ENV.tmp"
+mv -f -- "$EFFECTIVE_AUDIO_ENV.tmp" "$EFFECTIVE_AUDIO_ENV"
+chmod 0644 "$EFFECTIVE_AUDIO_ENV"
 
 if ! [[ "$HTTP_PORT" =~ ^[0-9]+$ ]] || ((HTTP_PORT < 1 || HTTP_PORT > 65535)); then
     echo "Некоректний PROAUDIO_HTTP_PORT: $HTTP_PORT" >&2
@@ -64,9 +106,8 @@ chown -R proaudio-player:proaudio-player \
     "$DATA_DIR" /srv/music "$RUNTIME_DIR" /run/shairport-sync \
     /home/proaudio-player/.local/state/wireplumber
 chown proaudio-player:proaudio-player \
-    "$CONFIG_DIR/config.yaml" "$CONFIG_DIR/audio.env" \
-    "$CONFIG_DIR/mpd.conf" "$CONFIG_DIR/shairport-sync.conf" \
-    "$CONFIG_DIR/spotifyd.conf" "$CONFIG_DIR/alerts-token"
+    "$CONFIG_DIR/config.yaml" "$CONFIG_DIR/audio.env.override" \
+    "$CONFIG_DIR/alerts-token" "$EFFECTIVE_AUDIO_ENV"
 chmod 0600 "$CONFIG_DIR/alerts-token"
 
 if [[ "${AUDIO_MODE:-null}" == "hardware" && ! -d /dev/snd ]]; then
