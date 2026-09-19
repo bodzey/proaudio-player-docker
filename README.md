@@ -12,7 +12,7 @@ Docker-репозиторій є integration layer. Він не містить �
 proaudio-player
 ```
 
-Усередині нього Supervisor керує:
+Усередині нього `s6-svscan` керує supervision tree:
 
 - system/session D-Bus;
 - PipeWire, pipewire-pulse та WirePlumber;
@@ -139,10 +139,7 @@ docker-data/music/   local music library
 ## Перевірка
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements-test.txt
-pytest -q
+bash tests/contract.sh
 
 ./docker/proaudio-player-dockerctl up-test
 curl -fsS http://127.0.0.1:5371/api/v1/health
