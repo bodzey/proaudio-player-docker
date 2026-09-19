@@ -69,8 +69,8 @@ def test_default_runtime_is_hardware_neutral_and_uses_parking_mode():
 
     assert service["environment"]["AUDIO_MODE"] == "${AUDIO_MODE:-null}"
     assert service["environment"]["ENABLE_DLNA"] == "${ENABLE_DLNA:-true}"
-    assert service["environment"]["PROAUDIO_UPNP_PUBLIC"] == "false"
-    assert service["environment"]["PROAUDIO_LAN_INTERFACE"] == "${PROAUDIO_LAN_INTERFACE:-}"
+    assert "PROAUDIO_UPNP_PUBLIC" not in service["environment"]
+    assert "PROAUDIO_LAN_INTERFACE" not in service["environment"]
 
     volumes = service["volumes"]
     assert "./docker-data/config:/etc/proaudio-player-alert" in volumes
@@ -121,24 +121,24 @@ def test_dockerfile_builds_projects_through_their_own_contracts():
     assert "gstreamer1.0-pulseaudio" in dockerfile
     assert "docker/run-dlna.sh" in dockerfile
     assert "config/avahi" not in dockerfile
+    assert "iproute2" not in dockerfile
 
 
-def test_integrated_dlna_uses_generic_lan_discovery():
+def test_integrated_dlna_keeps_native_public_and_transport_private():
     entrypoint = (ROOT / "docker/docker-entrypoint.sh").read_text(encoding="utf-8")
     script = (ROOT / "docker/run-dlna.sh").read_text(encoding="utf-8")
 
-    assert 'PROAUDIO_LAN_INTERFACE:-' in entrypoint
-    assert 'route_interface 239.255.255.250' in entrypoint
-    assert 'route_interface 1.1.1.1' in entrypoint
-    assert "ip -4 -o addr show scope global" in entrypoint
-    assert 'export PROAUDIO_UPNP_PUBLIC=false' in entrypoint
-    assert 'export PROAUDIO_DLNA_ENDPOINT=' in entrypoint
+    assert "PROAUDIO_LAN_INTERFACE" not in entrypoint
+    assert 'PROAUDIO_DLNA_ENDPOINT="http://127.0.0.1:$DLNA_PORT/' in entrypoint
+    assert "export PROAUDIO_UPNP_PUBLIC=true" in entrypoint
+    assert "export PROAUDIO_UPNP_PUBLIC=false" in entrypoint
 
-    assert '--interface-name="$interface"' in script
+    assert "--interface-name=lo" in script
     assert '--port="$port"' in script
-    assert '--friendly-name="ProAudio Player"' in script
+    assert '--friendly-name="ProAudio Player Transport"' in script
     assert "--gstout-audiosink=pulsesink" in script
     assert "--mime-filter=audio" in script
+    assert "49152" in script
     assert "eth0" not in script
 
 
@@ -194,8 +194,13 @@ def test_hardware_override_is_optional_generic_linux_audio_adapter():
 
     assert service["environment"]["AUDIO_MODE"] == "hardware"
     assert service["devices"] == ["/dev/snd:/dev/snd"]
-    assert service["group_add"] == ["audio"]
+    assert "group_add" not in service
     assert service["volumes"] == ["/run/udev:/run/udev:ro"]
+
+    entrypoint = (ROOT / "docker/docker-entrypoint.sh").read_text(encoding="utf-8")
+    assert "stat -c '%g'" in entrypoint
+    assert 'getent group "$gid"' in entrypoint
+    assert 'usermod -a -G "$group_name" proaudio-player' in entrypoint
 
     text = (ROOT / "compose.hardware.yaml").read_text(encoding="utf-8").lower()
     for marker in ("raspberry", "bcm", "usb:", "pci:"):
