@@ -185,8 +185,12 @@ case "${1:-}" in
         ;;
     status)
         "${base[@]}" ps
-        "${base[@]}" exec "$SERVICE" supervisorctl \
-            -c /etc/supervisor/conf.d/proaudio-player.conf status
+        "${base[@]}" exec "$SERVICE" bash -lc '
+            for service in /etc/proaudio-player/services/*; do
+                printf "%-20s " "$(basename "$service")"
+                s6-svstat "$service"
+            done
+        '
         ;;
     logs)
         "${base[@]}" logs -f --tail "${2:-150}"
