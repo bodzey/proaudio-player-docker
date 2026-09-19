@@ -1,141 +1,81 @@
 # Docker runtime architecture
 
-`proaudio_player_docker/dev` є integration layer між:
+`proaudio-player-docker` збирає native control plane та WebUI в один Linux container. Репозиторій не дублює business logic і не визначає board-specific policy.
+
+## Build graph
 
 ```text
-proaudio-player-native/dev
-                         +
-proaudio-player-webui/dev
-                         |
-                         v
-                Docker multi-stage build
+proaudio-player-native checkout -- cargo build --release --locked --+
+                                                                    |
+proaudio-player-webui checkout -- npm ci && npm run build ----------+--> runtime image
+                                                                    |
+spotifyd source build ----------------------------------------------+
 ```
 
-Docker-репозиторій не дублює application code і не повинен реалізовувати власну версію audio policy або frontend build logic.
+Compose не примушує `linux/amd64`. Builders і runtime використовують multi-architecture upstream images.
 
-## Build boundaries
-
-Native build contract:
+## Single-container runtime
 
 ```text
-повний checkout submodule
-        -> cargo build --locked --release
-        -> proaudio-player-native
+physical LAN
+    |
+    v
++------------------------------------------------+
+| proaudio-player                                |
+| network_mode: host                             |
+|                                                |
+| D-Bus                                          |
+| PipeWire / pipewire-pulse / WirePlumber        |
+| MUSIC + ALERT -> MASTER -> output / PARKING     |
+| MPD                                            |
+| Shairport Sync                                 |
+| spotifyd                                       |
+| gmediarender                                   |
+| proaudio-player-native + WebUI                  |
++------------------------------------------------+
 ```
 
-Builder має `libpulse-dev` і `pkg-config`, оскільки universal backend використовує `libpulse-binding`.
+Supervisor є process supervisor контейнера. Docker бачить один service/container, а внутрішні media engines залишаються ізольованими процесами.
 
-Web UI build contract:
+## DLNA
+
+Public protocol ownership залишається у native control plane. gmediarender є внутрішнім transport/decoder worker у тому самому container:
 
 ```text
-package.json + package-lock.json
-        -> npm ci
-        -> npm run build
-        -> dist/
+LAN / SSDP / SOAP
+        |
+        v
+proaudio-player-native
+        |
+        | PROAUDIO_DLNA_ENDPOINT
+        v
+127.0.0.1:49494
+        |
+        v
+gmediarender -> proaudio_player_music
 ```
 
-Runtime знає тільки про `dist/`, а не про `src/`, назви bundle-файлів, framework або CSS pipeline. Це дозволяє змінювати frontend без правок Dockerfile, доки Web UI зберігає стандартний build contract.
+Entry point валідовує `PROAUDIO_DLNA_PORT`, задає loopback endpoint і вмикає native public UPnP лише коли `ENABLE_DLNA=true`. gmediarender запускається з `--interface-name=lo`, тому transport worker не рекламується як другий LAN renderer і не залежить від назви чи адреси мережевого інтерфейсу хоста.
 
-Gitlink-и є лише bootstrap snapshot. У `dev` фактичний build source — поточний checkout кожного submodule після явного `sync-sources`; оновлювати gitlink commit у Docker-репозиторії після кожного upstream commit не потрібно. `.gitmodules` задає upstream branch і приховує очікувану різницю HEAD від superproject status.
+Так немає sidecar-container, приватної Docker subnet, hardcoded `eth0` або Docker-specific дублювання DLNA control plane.
 
-## Runtime layout
+## Audio
 
-```text
-                         physical LAN
-                              |
-             +----------------+----------------+
-             |                                 |
-             v                                 |
-+----------------------------+                 |
-| proaudio-player            |                 |
-| network_mode: host         |                 |
-|                            |                 |
-| native + Web UI            |<----------------+
-| PipeWire / Pulse / WP      |
-| MPD / AirPlay / Spotify    |
-| D-Bus / Avahi              |
-+-------------+--------------+
-              |
-              | shared Pulse Unix socket
-              v
-+----------------------------+
-| dlna-worker                |
-| Docker bridge only         |
-| 169.254.253.1:49494        |
-| gmediarender / GStreamer   |
-+----------------------------+
-```
-
-Основний контейнер є control plane і LAN-facing appliance. Web UI віддається самим native daemon з `/usr/share/proaudio-player/webui`, тому API та frontend залишаються same-origin на порту 8080.
-
-## Чому DLNA worker окремий
-
-У universal backend `gmediarender` — decoder/AVTransport worker, а не другий LAN renderer. Native очікує приватний endpoint:
-
-```text
-http://169.254.253.1:49494/upnp/control/rendertransport1
-```
-
-Запуск `gmediarender` всередині host-network контейнера робив би його окремим UPnP device у LAN або змушував би покладатися на loopback, який не є переносимим libupnp interface.
-
-Тому worker:
-
-- має лише user-defined Docker bridge;
-- отримує статичну адресу `169.254.253.1`;
-- не публікує жодного Docker port;
-- може завантажувати HTTP/HTTPS media через стандартний Docker NAT;
-- передає PCM у `proaudio_player_music` через спільний `pipewire-pulse` Unix socket;
-- не має `/dev/snd` і не керує hardware volume.
-
-Основний контейнер використовує host network і тому бачить адресу worker через route до Docker bridge. SSDP worker залишається всередині bridge і не рекламується у фізичну LAN.
-
-## Audio graph
-
-Docker не має власної копії routing policy. Він встановлює безпосередньо з native submodule:
-
-```text
-/usr/libexec/proaudio-player/audio-buses.sh
-/usr/libexec/proaudio-player/proaudio-player-output-watch
-```
-
-Graph contract:
+Docker споживає routing policy безпосередньо з native checkout:
 
 ```text
 programme source -> MUSIC --+
-                            +--> MASTER --> physical sink / PARKING
+                            +--> MASTER --> physical output / PARKING
 alert -----------> ALERT --+
 ```
 
-Фіксовані graph links працюють на unity. Вибір physical output, hot-plug reconciliation, PARKING fallback і hardware-unity policy належать native scripts.
+Default Compose не передає audio hardware. Це дозволяє запускати image на CI, server VM або development host з PARKING sink.
 
-`up-test` просто запускає цей самий graph без `/dev/snd`; він природно завершується на `PARKING_SINK`. Окремого Docker test sink немає.
+`compose.hardware.yaml` — optional generic Linux audio adapter. Він передає лише `/dev/snd` та read-only `/run/udev`; конкретна плата чи DAC у Docker layer невідомі. Entry point визначає GID фактичного ALSA device node та надає runtime-користувачу відповідну supplementary group всередині контейнера, не покладаючись на GID групи `audio` хоста.
 
-Hardware mode додає лише:
+## Persistent state
 
-```text
-/dev/snd
-/run/udev:ro
-```
-
-Постійний вибір виходу зберігається в `/var/lib/proaudio-player-alert/audio-output.env`, що на host відповідає `docker-data/data/audio-output.env`.
-
-## Process supervision
-
-Supervisor всередині основного контейнера запускає:
-
-1. system/session D-Bus;
-2. PipeWire, pipewire-pulse, WirePlumber;
-3. native audio buses;
-4. native output watcher;
-5. Avahi;
-6. MPD, Shairport Sync, spotifyd;
-7. `proaudio-player-native`.
-
-DLNA worker не є Supervisor process основного контейнера — ним керує Docker Compose як окремим мінімальним service.
-
-## Persistent and ephemeral state
-
-Persistent bind mounts:
+Bind mounts:
 
 ```text
 docker-data/config -> /etc/proaudio-player-alert
@@ -143,42 +83,33 @@ docker-data/data   -> /var/lib/proaudio-player-alert
 docker-data/music  -> /srv/music
 ```
 
-У `docker-data/config` persistent є лише user-owned `config.yaml`, `alerts-token` та optional `audio.env.override`. Receiver-конфіги MPD/AirPlay/Spotify беруться безпосередньо з `/opt/proaudio-player/defaults`, який запаковується з поточного native checkout.
-
-Ефективний `audio.env` створюється при старті у `/run/proaudio-player/audio.env`: базою є актуальний `config/audio.env.example` native, а explicit `audio.env.override` замінює лише вказані ключі. Тому нові native audio-policy keys автоматично з'являються після rebuild, не перетворюючи Docker adapter на окреме джерело audio policy.
-
-Named volume:
+Ephemeral state:
 
 ```text
-proaudio-runtime -> /run/proaudio-player
+/run/proaudio-player
 ```
 
-`proaudio-runtime` використовується лише для Pulse socket і ready-state між двома контейнерами. Основний entrypoint очищає його на старті, щоб stale socket/lock не переживав runtime restart.
+Shared runtime volume відсутній, оскільки container один.
 
-## Source updates
+## Source policy
 
-```bash
-./docker/proaudio-player-dockerctl sync-sources
-./docker/proaudio-player-dockerctl revisions
-```
+`.gitmodules` задає `dev` для native та WebUI. Gitlinks є bootstrap revisions; `dockerctl sync-sources` оновлює working checkout перед build.
 
-`sync-sources` читає branch policy з `.gitmodules` і виконує `git submodule update --remote --checkout`. Після цього `build`, `up-test` і `up-hardware` збирають саме поточні HEAD checkout-ів та передають їх SHA в OCI labels. Gitlink-и лишаються bootstrap snapshot і не потребують окремого commit після кожного оновлення source.
+## Acceptance
 
-## Verification
-
-Статичні integration tests:
+Static:
 
 ```bash
+docker compose config --quiet
 pytest -q
 ```
 
-Runtime smoke test:
+Runtime:
 
 ```bash
 ./docker/proaudio-player-dockerctl up-test
-curl -fsS http://127.0.0.1:8080/api/v1/health
+curl -fsS http://127.0.0.1:5371/api/v1/health
 ./docker/proaudio-player-dockerctl status
-./docker/proaudio-player-dockerctl sinks
 ```
 
-Для hardware acceptance додатково перевіряються output switching, USB hot-plug, MUSIC + ALERT і DLNA playback.
+Hardware acceptance є окремим optional test і не є build requirement для Docker image.

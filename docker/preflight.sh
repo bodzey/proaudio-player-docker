@@ -5,7 +5,7 @@ required=(
     amixer
     busctl
     dbus-daemon
-    ip
+    gmediarender
     kill
     mpc
     mpd

@@ -26,6 +26,10 @@ for service in \
         | grep -q RUNNING
 done
 
+if is_true "${ENABLE_DLNA:-true}"; then
+    supervisorctl -c /etc/supervisor/conf.d/proaudio-player.conf status dlna         | grep -q RUNNING
+fi
+
 if is_true "${HEALTHCHECK_HTTP:-true}"; then
     curl --fail --silent --show-error --max-time 3 \
         "http://127.0.0.1:${HEALTHCHECK_PORT:-5371}/api/v1/health" >/dev/null

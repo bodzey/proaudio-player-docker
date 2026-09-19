@@ -1,6 +1,5 @@
 services:
   proaudio-player:
-    platform: "${DOCKER_PLATFORM:-linux/amd64}"
     build:
       context: .
       target: runtime
@@ -17,8 +16,10 @@ services:
       TZ: "${TZ:-Europe/Kyiv}"
       AUDIO_MODE: "${AUDIO_MODE:-null}"
       ENABLE_AIRPLAY: "${ENABLE_AIRPLAY:-true}"
+      ENABLE_DLNA: "${ENABLE_DLNA:-true}"
       ENABLE_MPD: "${ENABLE_MPD:-true}"
       ENABLE_SPOTIFY: "${ENABLE_SPOTIFY:-true}"
+      PROAUDIO_DLNA_PORT: "${PROAUDIO_DLNA_PORT:-49494}"
       PROAUDIO_WEBUI_DIR: /usr/share/proaudio-player/webui
       PROAUDIO_HTTP_PORT: "${PROAUDIO_HTTP_PORT:-5371}"
       HEALTHCHECK_HTTP: "${HEALTHCHECK_HTTP:-true}"
@@ -27,38 +28,4 @@ services:
       - ./docker-data/config:/etc/proaudio-player-alert
       - ./docker-data/data:/var/lib/proaudio-player-alert
       - ./docker-data/music:/srv/music
-      - proaudio-runtime:/run/proaudio-player
     stop_grace_period: 20s
-
-  dlna-worker:
-    platform: "${DOCKER_PLATFORM:-linux/amd64}"
-    build:
-      context: .
-      target: dlna-worker
-    image: "proaudio-player-dlna-worker:${IMAGE_TAG:-dev}"
-    container_name: proaudio-player-dlna-worker
-    restart: unless-stopped
-    depends_on:
-      proaudio-player:
-        condition: service_healthy
-    environment:
-      ENABLE_DLNA: "${ENABLE_DLNA:-true}"
-      PULSE_SERVER: unix:/run/proaudio-player/pulse/native
-      PULSE_SINK: proaudio_player_music
-    volumes:
-      - proaudio-runtime:/run/proaudio-player
-    networks:
-      dlna-private:
-        ipv4_address: 169.254.253.1
-    stop_grace_period: 10s
-
-volumes:
-  proaudio-runtime:
-
-networks:
-  dlna-private:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 169.254.253.0/29
-          gateway: 169.254.253.6

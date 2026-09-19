@@ -14,8 +14,8 @@ install -d -o proaudio-player -g proaudio-player -m 0700 \
 install -d -o proaudio-player -g proaudio-player -m 0750 \
     /home/proaudio-player/.local/state/wireplumber
 
-# /run/proaudio-player is a shared ephemeral coordination volume for the main
-# runtime and the isolated DLNA worker. Never carry sockets/locks across starts.
+# /run/proaudio-player is ephemeral container runtime state.
+# Never carry sockets or locks across starts.
 find "$RUNTIME_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 install -d -o proaudio-player -g proaudio-player -m 0700 "$RUNTIME_DIR"
 
@@ -75,6 +75,27 @@ if ! [[ "$HTTP_PORT" =~ ^[0-9]+$ ]] || ((HTTP_PORT < 1 || HTTP_PORT > 65535)); t
     exit 1
 fi
 
+is_true() {
+    [[ "${1,,}" =~ ^(1|true|yes|on)$ ]]
+}
+
+if is_true "${ENABLE_DLNA:-true}"; then
+    DLNA_PORT="${PROAUDIO_DLNA_PORT:-49494}"
+    if ! [[ "$DLNA_PORT" =~ ^[0-9]+$ ]] || ((DLNA_PORT < 49152 || DLNA_PORT > 65535)); then
+        echo "Некоректний PROAUDIO_DLNA_PORT: $DLNA_PORT (допустимо 49152..65535)" >&2
+        exit 1
+    fi
+
+    # gmediarender is a private decoder/transport worker. Native owns the
+    # LAN-facing UPnP renderer, state, source arbitration and volume controls.
+    export PROAUDIO_DLNA_ENDPOINT="http://127.0.0.1:$DLNA_PORT/upnp/control/rendertransport1"
+    export PROAUDIO_UPNP_PUBLIC=true
+    echo "DLNA: native renderer public, transport worker on loopback:$DLNA_PORT"
+else
+    unset PROAUDIO_DLNA_ENDPOINT
+    export PROAUDIO_UPNP_PUBLIC=false
+fi
+
 # The main container uses host networking for multicast/discovery, so Docker
 # cannot publish host_port:container_port in the normal bridge-network sense.
 # Keep the port override in the Docker adapter and apply it to the mounted
@@ -110,9 +131,31 @@ chown proaudio-player:proaudio-player \
     "$CONFIG_DIR/alerts-token" "$EFFECTIVE_AUDIO_ENV"
 chmod 0600 "$CONFIG_DIR/alerts-token"
 
-if [[ "${AUDIO_MODE:-null}" == "hardware" && ! -d /dev/snd ]]; then
-    echo "AUDIO_MODE=hardware, але /dev/snd не передано в контейнер." >&2
-    exit 1
+configure_audio_device_access() {
+    local node gid group_name
+
+    node="$(find /dev/snd -maxdepth 1 -type c -print -quit 2>/dev/null || true)"
+    if [[ -z "$node" ]]; then
+        echo "AUDIO_MODE=hardware, але у /dev/snd немає ALSA device nodes." >&2
+        return 1
+    fi
+
+    gid="$(stat -c '%g' "$node")"
+    group_name="$(getent group "$gid" | cut -d: -f1 || true)"
+    if [[ -z "$group_name" ]]; then
+        group_name=proaudio-host-audio
+        groupadd --gid "$gid" "$group_name"
+    fi
+
+    usermod -a -G "$group_name" proaudio-player
+}
+
+if [[ "${AUDIO_MODE:-null}" == "hardware" ]]; then
+    if [[ ! -d /dev/snd ]]; then
+        echo "AUDIO_MODE=hardware, але /dev/snd не передано в контейнер." >&2
+        exit 1
+    fi
+    configure_audio_device_access
 fi
 
 /usr/local/bin/preflight.sh
