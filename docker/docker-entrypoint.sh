@@ -3,12 +3,14 @@ set -euo pipefail
 
 CONFIG_DIR=/etc/proaudio-player-alert
 DATA_DIR=/var/lib/proaudio-player-alert
+MEDIA_DIR="$DATA_DIR/media"
+DEFAULT_MEDIA_DIR=/usr/share/proaudio-player/announcements
 RUNTIME_DIR=/run/proaudio-player
 DEFAULTS_DIR=/opt/proaudio-player/defaults
 HTTP_PORT="${PROAUDIO_HTTP_PORT:-5371}"
 
 install -d -m 0755 "$CONFIG_DIR" /srv/music /run/dbus /var/lib/dbus
-install -d -m 0750 "$DATA_DIR" "$DATA_DIR/mpd" "$DATA_DIR/mpd/playlists"
+install -d -m 0750 "$DATA_DIR" "$DATA_DIR/mpd" "$DATA_DIR/mpd/playlists" "$MEDIA_DIR"
 install -d -o proaudio-player -g proaudio-player -m 0700 \
     "$RUNTIME_DIR" /run/shairport-sync
 install -d -o proaudio-player -g proaudio-player -m 0750 \
@@ -25,6 +27,12 @@ fi
 if [[ ! -f "$CONFIG_DIR/audio.env.override" ]]; then
     install -m 0644 /dev/null "$CONFIG_DIR/audio.env.override"
 fi
+
+for media_file in alarm_start.mp3 alarm_end.mp3 minute_silence.mp3; do
+    if [[ ! -f "$MEDIA_DIR/$media_file" ]]; then
+        install -m 0644 "$DEFAULT_MEDIA_DIR/$media_file" "$MEDIA_DIR/$media_file"
+    fi
+done
 
 # audio.env is generated from the exact native revision packaged in this image.
 # Persistent Docker state carries only explicit KEY=VALUE overrides, so newly
