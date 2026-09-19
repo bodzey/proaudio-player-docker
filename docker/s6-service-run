@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+service_name="$(basename "$PWD")"
+
+run_as_player() {
+    exec /usr/bin/setpriv         --reuid=proaudio-player         --regid=proaudio-player         --init-groups         -- "$@"
+}
+
+case "$service_name" in
+    system-dbus)
+        exec /usr/bin/dbus-daemon --system --nofork --nopidfile
+        ;;
+    session-dbus)
+        run_as_player /usr/bin/dbus-daemon             --session             --nofork             --nopidfile             --address=unix:path=/run/proaudio-player/session-bus
+        ;;
+    pipewire)
+        run_as_player /usr/bin/pipewire
+        ;;
+    pipewire-pulse)
+        run_as_player /usr/bin/pipewire-pulse
+        ;;
+    wireplumber)
+        run_as_player /usr/bin/wireplumber
+        ;;
+    audio-buses)
+        run_as_player /usr/local/bin/run-audio-buses.sh
+        ;;
+    audio-output-watch)
+        export AUDIO_ENV=/run/proaudio-player/audio.env
+        export OUTPUT_ENV=/var/lib/proaudio-player-alert/audio-output.env
+        export BUS_SCRIPT=/usr/libexec/proaudio-player/audio-buses.sh
+        run_as_player /usr/local/bin/run-output-watch.sh
+        ;;
+    avahi)
+        exec /usr/sbin/avahi-daemon --no-chroot --no-drop-root
+        ;;
+    mpd)
+        export PULSE_SINK=proaudio_player_music
+        run_as_player /usr/local/bin/run-service.sh             ENABLE_MPD audio             /usr/bin/mpd --no-daemon /opt/proaudio-player/defaults/mpd.conf
+        ;;
+    airplay)
+        export PULSE_SINK=proaudio_player_music
+        run_as_player /usr/local/bin/run-service.sh             ENABLE_AIRPLAY audio             /usr/bin/shairport-sync -c /opt/proaudio-player/defaults/shairport-sync.conf
+        ;;
+    dlna)
+        export PULSE_SINK=proaudio_player_music
+        run_as_player /usr/local/bin/run-service.sh             ENABLE_DLNA audio             /usr/local/bin/run-dlna.sh
+        ;;
+    spotify)
+        export PULSE_SINK=proaudio_player_music
+        run_as_player /usr/local/bin/run-service.sh             ENABLE_SPOTIFY audio             /usr/local/bin/spotifyd             --no-daemon             --config-path /opt/proaudio-player/defaults/spotifyd.conf
+        ;;
+    native)
+        export PROAUDIO_AUDIO_ENV=/run/proaudio-player/audio.env
+        run_as_player /usr/local/bin/run-service.sh             ALWAYS audio             /usr/local/bin/proaudio-player-native             --config /etc/proaudio-player-alert/config.yaml run
+        ;;
+    *)
+        echo "Невідома s6-служба: $service_name" >&2
+        exit 64
+        ;;
+esac
