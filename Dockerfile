@@ -38,31 +38,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* /usr/local/cargo/registry /usr/local/cargo/git
 
 
-FROM debian:trixie-slim AS dlna-worker
-
-ENV DEBIAN_FRONTEND=noninteractive \
-    HOME=/home/proaudio-player \
-    PULSE_SERVER=unix:/run/proaudio-player/pulse/native \
-    PULSE_SINK=proaudio_player_music
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       bash \
-       ca-certificates \
-       gmediarender \
-       gstreamer1.0-libav \
-       gstreamer1.0-plugins-good \
-       gstreamer1.0-pulseaudio \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 1000 --shell /usr/sbin/nologin proaudio-player
-
-COPY docker/run-dlna-worker.sh /usr/local/bin/run-dlna-worker.sh
-RUN chmod 0755 /usr/local/bin/run-dlna-worker.sh
-
-USER proaudio-player
-ENTRYPOINT ["/usr/local/bin/run-dlna-worker.sh"]
-
-
 FROM debian:trixie-slim AS runtime
 
 ARG APP_VERSION=dev
@@ -74,7 +49,7 @@ LABEL org.opencontainers.image.title="ProAudio Player" \
       org.opencontainers.image.revision="${NATIVE_REVISION}" \
       io.proaudio.native.revision="${NATIVE_REVISION}" \
       io.proaudio.webui.revision="${WEBUI_REVISION}" \
-      org.opencontainers.image.description="amd64 Docker runtime for ProAudio Player"
+      org.opencontainers.image.description="Portable Linux Docker runtime for ProAudio Player"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Europe/Kyiv \
@@ -96,6 +71,10 @@ RUN apt-get update \
        ca-certificates \
        curl \
        dbus \
+       gmediarender \
+       gstreamer1.0-libav \
+       gstreamer1.0-plugins-good \
+       gstreamer1.0-pulseaudio \
        iproute2 \
        libspa-0.2-modules \
        mpc \
@@ -144,6 +123,7 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/proaudio-player.conf
 COPY docker/docker-entrypoint.sh \
      docker/discover-audio.sh \
      docker/run-audio-buses.sh \
+     docker/run-dlna.sh \
      docker/run-service.sh \
      docker/container-healthcheck.sh \
      docker/preflight.sh \
@@ -156,6 +136,7 @@ RUN chmod 0755 \
        /usr/local/bin/docker-entrypoint.sh \
        /usr/local/bin/discover-audio.sh \
        /usr/local/bin/run-audio-buses.sh \
+       /usr/local/bin/run-dlna.sh \
        /usr/local/bin/run-service.sh \
        /usr/local/bin/container-healthcheck.sh \
        /usr/local/bin/preflight.sh \
