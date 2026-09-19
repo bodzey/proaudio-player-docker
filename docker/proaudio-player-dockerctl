@@ -84,7 +84,7 @@ select_audio() {
         exit 1
     }
     initialize
-    echo "Збирання amd64 runtime та пошук аудіовиходів..."
+    echo "Збирання runtime для архітектури хоста та пошук аудіовиходів..."
     compose_with_revisions "${hardware[@]}" build "$SERVICE"
 
     local discovery_output
