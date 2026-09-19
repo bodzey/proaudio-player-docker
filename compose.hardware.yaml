@@ -4,7 +4,5 @@ services:
       AUDIO_MODE: hardware
     devices:
       - /dev/snd:/dev/snd
-    group_add:
-      - audio
     volumes:
       - /run/udev:/run/udev:ro
