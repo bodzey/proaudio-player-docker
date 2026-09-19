@@ -44,7 +44,7 @@ Supervisor є process supervisor контейнера. Docker бачить од�
 Entry point:
 
 1. читає optional `PROAUDIO_LAN_INTERFACE`;
-2. інакше знаходить IPv4 interface через default route;
+2. інакше знаходить IPv4 interface за маршрутом до SSDP multicast, з generic route/address fallback;
 3. визначає його global IPv4;
 4. формує `PROAUDIO_DLNA_ENDPOINT=http://<address>:<port>/upnp/control/rendertransport1`;
 5. вимикає native public UPnP advertisement через `PROAUDIO_UPNP_PUBLIC=false`;
