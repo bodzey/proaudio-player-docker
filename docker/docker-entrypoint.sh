@@ -149,7 +149,7 @@ if is_true "${ENABLE_DLNA:-true}"; then
     # while native consumes it as the transport backend and remains the player
     # control plane for audio routing, source state and the Web API.
     export PROAUDIO_UPNP_PUBLIC=false
-    echo "DLNA: gmediarender on $PROAUDIO_DLNA_INTERFACE ($DLNA_ADDRESS:$DLNA_PORT); native endpoint proxy disabled"
+    echo "DLNA: gmediarender public on $PROAUDIO_DLNA_INTERFACE ($DLNA_ADDRESS:$DLNA_PORT); native public UPnP disabled"
 else
     unset PROAUDIO_DLNA_ENDPOINT
     unset PROAUDIO_DLNA_INTERFACE
