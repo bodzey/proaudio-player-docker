@@ -39,20 +39,25 @@ Supervisor є process supervisor контейнера. Docker бачить од�
 
 ## DLNA
 
-У container runtime gmediarender є єдиним public DLNA MediaRenderer.
+Public protocol ownership залишається у native control plane. gmediarender є внутрішнім transport/decoder worker у тому самому container:
 
-Entry point:
+```text
+LAN / SSDP / SOAP
+        |
+        v
+proaudio-player-native
+        |
+        | PROAUDIO_DLNA_ENDPOINT
+        v
+127.0.0.1:49494
+        |
+        v
+gmediarender -> proaudio_player_music
+```
 
-1. читає optional `PROAUDIO_LAN_INTERFACE`;
-2. інакше знаходить IPv4 interface за маршрутом до SSDP multicast, з generic route/address fallback;
-3. визначає його global IPv4;
-4. формує `PROAUDIO_DLNA_ENDPOINT=http://<address>:<port>/upnp/control/rendertransport1`;
-5. вимикає native public UPnP advertisement через `PROAUDIO_UPNP_PUBLIC=false`;
-6. Supervisor запускає gmediarender на тому самому interface.
+Entry point валідовує `PROAUDIO_DLNA_PORT`, задає loopback endpoint і вмикає native public UPnP лише коли `ENABLE_DLNA=true`. gmediarender запускається з `--interface-name=lo`, тому transport worker не рекламується як другий LAN renderer і не залежить від назви чи адреси мережевого інтерфейсу хоста.
 
-Так немає ні sidecar-container, ні hardcoded `eth0`, ні приватної Docker subnet.
-
-Якщо придатного IPv4 interface немає, DLNA вимикається для цього запуску, але player runtime продовжує працювати.
+Так немає sidecar-container, приватної Docker subnet, hardcoded `eth0` або Docker-specific дублювання DLNA control plane.
 
 ## Audio
 
@@ -66,7 +71,7 @@ alert -----------> ALERT --+
 
 Default Compose не передає audio hardware. Це дозволяє запускати image на CI, server VM або development host з PARKING sink.
 
-`compose.hardware.yaml` — optional generic Linux audio adapter. Він передає лише `/dev/snd` та read-only `/run/udev`; конкретна плата чи DAC у Docker layer невідомі.
+`compose.hardware.yaml` — optional generic Linux audio adapter. Він передає лише `/dev/snd` та read-only `/run/udev`; конкретна плата чи DAC у Docker layer невідомі. Entry point визначає GID фактичного ALSA device node та надає runtime-користувачу відповідну supplementary group всередині контейнера, не покладаючись на GID групи `audio` хоста.
 
 ## Persistent state
 
