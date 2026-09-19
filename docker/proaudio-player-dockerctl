@@ -161,7 +161,7 @@ case "${1:-}" in
         ;;
     up-test)
         initialize
-        compose_with_revisions "${base[@]}" up -d --build
+        compose_with_revisions "${base[@]}" up -d --build --remove-orphans
         ;;
     up-hardware)
         [[ -d /dev/snd ]] || {
@@ -175,13 +175,13 @@ case "${1:-}" in
         else
             echo "Аудіовихід не зафіксовано; native output policy вибере доступний фізичний sink."
         fi
-        compose_with_revisions "${hardware[@]}" up -d --build
+        compose_with_revisions "${hardware[@]}" up -d --build --remove-orphans
         ;;
     select-audio)
         select_audio
         ;;
     down)
-        "${base[@]}" down
+        "${base[@]}" down --remove-orphans
         ;;
     status)
         "${base[@]}" ps
