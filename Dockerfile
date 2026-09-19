@@ -115,9 +115,6 @@ COPY --from=native-builder /build/proaudio-player-native/scripts/proaudio-player
 
 COPY --from=native-builder /build/proaudio-player-native/config/wireplumber/ \
      /etc/wireplumber/wireplumber.conf.d/
-COPY --from=native-builder /build/proaudio-player-native/config/avahi/ \
-     /etc/avahi/services/
-
 COPY docker/proaudio-player-mpris.conf /etc/dbus-1/system.d/proaudio-player-mpris.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/proaudio-player.conf
 COPY docker/docker-entrypoint.sh \
