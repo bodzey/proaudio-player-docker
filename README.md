@@ -48,7 +48,7 @@ Docker runtime не містить Raspberry Pi, SoC, board name, конкрет
 
 Основний container використовує `network_mode: host`, оскільки AirPlay, Avahi, Spotify Connect та DLNA використовують LAN multicast/discovery.
 
-Для DLNA Docker entrypoint автоматично вибирає IPv4 interface з default route. Якщо потрібно, interface можна задати:
+Для DLNA Docker entrypoint спочатку визначає IPv4 interface за маршрутом до SSDP multicast `239.255.255.250`, далі використовує звичайний IPv4 route і generic global-address fallback. Якщо потрібно, interface можна задати явно:
 
 ```bash
 PROAUDIO_LAN_INTERFACE=enp3s0
