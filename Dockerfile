@@ -85,7 +85,7 @@ RUN apt-get update \
        procps \
        pulseaudio-utils \
        shairport-sync \
-       supervisor \
+       s6 \
        systemd \
        tini \
        tzdata \
@@ -115,7 +115,7 @@ COPY --from=native-builder /build/proaudio-player-native/scripts/proaudio-player
 COPY --from=native-builder /build/proaudio-player-native/config/wireplumber/ \
      /etc/wireplumber/wireplumber.conf.d/
 COPY docker/proaudio-player-mpris.conf /etc/dbus-1/system.d/proaudio-player-mpris.conf
-COPY docker/supervisord.conf /etc/supervisor/conf.d/proaudio-player.conf
+COPY docker/s6-service-run /usr/local/bin/s6-service-run
 COPY docker/docker-entrypoint.sh \
      docker/discover-audio.sh \
      docker/run-audio-buses.sh \
@@ -138,6 +138,7 @@ RUN chmod 0755 \
        /usr/local/bin/run-service.sh \
        /usr/local/bin/container-healthcheck.sh \
        /usr/local/bin/preflight.sh \
+       /usr/local/bin/s6-service-run \
     && mkdir -p \
        /etc/proaudio-player-alert \
        /var/lib/proaudio-player-alert/mpd/playlists \
@@ -151,7 +152,19 @@ RUN chmod 0755 \
        /var/lib/proaudio-player-alert \
        /srv/music \
        /run/proaudio-player \
-       /run/shairport-sync
+       /run/shairport-sync \
+    && install -d -m 0755 /etc/proaudio-player/services \
+    && for service in \
+       system-dbus session-dbus pipewire pipewire-pulse wireplumber \
+       audio-buses audio-output-watch avahi mpd airplay dlna spotify native; do \
+         install -d -m 0755 "/etc/proaudio-player/services/$service"; \
+         ln -s /usr/local/bin/s6-service-run "/etc/proaudio-player/services/$service/run"; \
+       done \
+    && if dpkg-query -W -f='${Package}\n' \
+         | grep -Eq '^(python([0-9.]|$|-)|libpython)'; then \
+         echo "Python runtime dependency detected in final image" >&2; \
+         exit 1; \
+       fi
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
     CMD ["/usr/local/bin/container-healthcheck.sh"]

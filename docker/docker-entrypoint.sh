@@ -220,4 +220,4 @@ fi
 
 /usr/local/bin/preflight.sh
 
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/proaudio-player.conf
+exec /usr/bin/s6-svscan /etc/proaudio-player/services

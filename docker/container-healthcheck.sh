@@ -22,12 +22,11 @@ for service in \
     audio-buses \
     audio-output-watch \
     native; do
-    supervisorctl -c /etc/supervisor/conf.d/proaudio-player.conf status "$service" \
-        | grep -q RUNNING
+    [[ "$(s6-svstat -u "/etc/proaudio-player/services/$service")" == "true" ]]
 done
 
 if is_true "${ENABLE_DLNA:-true}"; then
-    supervisorctl -c /etc/supervisor/conf.d/proaudio-player.conf status dlna         | grep -q RUNNING
+    [[ "$(s6-svstat -u /etc/proaudio-player/services/dlna)" == "true" ]]
 fi
 
 if is_true "${HEALTHCHECK_HTTP:-true}"; then
