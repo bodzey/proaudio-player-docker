@@ -70,6 +70,7 @@ def test_default_runtime_is_hardware_neutral_and_uses_parking_mode():
     assert service["environment"]["AUDIO_MODE"] == "${AUDIO_MODE:-null}"
     assert service["environment"]["ENABLE_DLNA"] == "${ENABLE_DLNA:-true}"
     assert "PROAUDIO_UPNP_PUBLIC" not in service["environment"]
+    assert service["environment"]["PROAUDIO_DLNA_INTERFACE"] == "${PROAUDIO_DLNA_INTERFACE:-}"
     assert "PROAUDIO_LAN_INTERFACE" not in service["environment"]
 
     volumes = service["volumes"]
@@ -121,21 +122,23 @@ def test_dockerfile_builds_projects_through_their_own_contracts():
     assert "gstreamer1.0-pulseaudio" in dockerfile
     assert "docker/run-dlna.sh" in dockerfile
     assert "config/avahi" not in dockerfile
-    assert "iproute2" not in dockerfile
+    assert "iproute2" in dockerfile
 
 
-def test_integrated_dlna_keeps_native_public_and_transport_private():
+def test_integrated_dlna_discovers_runtime_interface_without_fixed_nic_name():
     entrypoint = (ROOT / "docker/docker-entrypoint.sh").read_text(encoding="utf-8")
     script = (ROOT / "docker/run-dlna.sh").read_text(encoding="utf-8")
 
     assert "PROAUDIO_LAN_INTERFACE" not in entrypoint
-    assert 'PROAUDIO_DLNA_ENDPOINT="http://127.0.0.1:$DLNA_PORT/' in entrypoint
-    assert "export PROAUDIO_UPNP_PUBLIC=true" in entrypoint
+    assert "route get 239.255.255.250" in entrypoint
+    assert "interface_is_usable_for_dlna" in entrypoint
+    assert 'PROAUDIO_DLNA_ENDPOINT="http://$DLNA_ADDRESS:$DLNA_PORT/' in entrypoint
     assert "export PROAUDIO_UPNP_PUBLIC=false" in entrypoint
 
-    assert "--interface-name=lo" in script
+    assert '--interface-name="$interface"' in script
+    assert "--interface-name=lo" not in script
     assert '--port="$port"' in script
-    assert '--friendly-name="ProAudio Player Transport"' in script
+    assert 'friendly_name="${PROAUDIO_DLNA_FRIENDLY_NAME:-ProAudio Player}"' in script
     assert "--gstout-audiosink=pulsesink" in script
     assert "--mime-filter=audio" in script
     assert "49152" in script
