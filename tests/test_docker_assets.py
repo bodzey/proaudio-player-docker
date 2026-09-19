@@ -257,6 +257,13 @@ def test_fresh_hardware_start_does_not_require_saved_sink_file():
     assert "архітектури хоста" in dockerctl
 
 
+def test_compose_lifecycle_removes_obsolete_sidecars():
+    dockerctl = (ROOT / "docker/proaudio-player-dockerctl").read_text(encoding="utf-8")
+
+    assert dockerctl.count("up -d --build --remove-orphans") == 2
+    assert '"${base[@]}" down --remove-orphans' in dockerctl
+
+
 def test_shell_scripts_parse_with_bash():
     for path in sorted((ROOT / "docker").glob("*.sh")):
         subprocess.run(["bash", "-n", str(path)], check=True)
