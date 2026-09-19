@@ -17,7 +17,9 @@ required=(
     proaudio-player-native
     shairport-sync
     spotifyd
-    supervisorctl
+    s6-svscan
+    s6-svstat
+    setpriv
     wireplumber
 )
 
