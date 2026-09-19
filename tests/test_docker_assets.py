@@ -196,9 +196,10 @@ def test_hardware_override_is_optional_generic_linux_audio_adapter():
     service = service_from("compose.hardware.yaml")
 
     assert service["environment"]["AUDIO_MODE"] == "hardware"
-    assert service["devices"] == ["/dev/snd:/dev/snd"]
+    assert "devices" not in service
     assert "group_add" not in service
-    assert service["volumes"] == ["/run/udev:/run/udev:ro"]
+    assert service["device_cgroup_rules"] == ["c 116:* rwm"]
+    assert service["volumes"] == ["/dev/snd:/dev/snd", "/run/udev:/run/udev:ro"]
 
     entrypoint = (ROOT / "docker/docker-entrypoint.sh").read_text(encoding="utf-8")
     assert "stat -c '%g'" in entrypoint
