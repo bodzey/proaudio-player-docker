@@ -71,7 +71,9 @@ alert -----------> ALERT --+
 
 Default Compose не передає audio hardware. Це дозволяє запускати image на CI, server VM або development host з PARKING sink.
 
-`compose.hardware.yaml` — optional generic Linux audio adapter. Він передає лише `/dev/snd` та read-only `/run/udev`; конкретна плата чи DAC у Docker layer невідомі. Entry point визначає GID фактичного ALSA device node та надає runtime-користувачу відповідну supplementary group всередині контейнера, не покладаючись на GID групи `audio` хоста.
+`compose.hardware.yaml` — optional generic Linux audio adapter. Він bind-mount-ить `/dev/snd`, передає read-only `/run/udev` і дозволяє стандартний Linux ALSA character-device major `116:*`. Це важливо для hotplug: нові ALSA device nodes стають видимими вже запущеному container та не блокуються cgroup device policy. Конкретна плата чи DAC у Docker layer невідомі.
+
+Entry point визначає GID фактичного ALSA device node та надає runtime-користувачу відповідну supplementary group всередині контейнера, не покладаючись на GID групи `audio` хоста. Native output watcher обробляє topology events і зміни persisted output selection, тому Web UI може перемикати доступні sinks без перезапуску container.
 
 ## Persistent state
 
