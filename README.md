@@ -42,27 +42,27 @@ Docker runtime не містить Raspberry Pi, SoC, board name, конкрет
 /run/udev:ro
 ```
 
-Він не знає модель DAC, USB VID/PID, Raspberry Pi або назву ALSA card.
+Він не знає модель DAC, USB VID/PID, Raspberry Pi або назву ALSA card. Під час старту контейнер читає фактичний GID переданого `/dev/snd` і додає runtime-користувача до відповідної групи всередині контейнера, тому збіг GID `audio` між різними Linux-хостами не потрібен.
 
 ## Network discovery
 
-Основний container використовує `network_mode: host`, оскільки AirPlay, Avahi, Spotify Connect та DLNA використовують LAN multicast/discovery.
+Основний container використовує `network_mode: host`, оскільки AirPlay, Avahi, Spotify Connect і native DLNA/UPnP використовують LAN multicast/discovery.
 
-Для DLNA Docker entrypoint спочатку визначає IPv4 interface за маршрутом до SSDP multicast `239.255.255.250`, далі використовує звичайний IPv4 route і generic global-address fallback. Якщо потрібно, interface можна задати явно:
+DLNA розділений за відповідальністю, але не за контейнерами:
 
-```bash
-PROAUDIO_LAN_INTERFACE=enp3s0
+```text
+LAN controller -> proaudio-player-native -> 127.0.0.1:49494 -> gmediarender -> MUSIC bus
 ```
 
-Назва `eth0` ніде не є архітектурним припущенням.
+`proaudio-player-native` є єдиним LAN-facing MediaRenderer і володіє UPnP discovery, transport API, source arbitration та software volume/mute. `gmediarender` працює лише як внутрішній decoder/transport worker на loopback і не потребує знати назву фізичного LAN-інтерфейсу.
 
-У Docker режимі `gmediarender` є єдиним LAN-facing DLNA MediaRenderer. Native public UPnP proxy вимикається через `PROAUDIO_UPNP_PUBLIC=false`, а native control plane працює з gmediarender через автоматично сформований `PROAUDIO_DLNA_ENDPOINT`.
-
-Порт DLNA:
+Порт внутрішнього transport worker:
 
 ```text
 PROAUDIO_DLNA_PORT=49494
 ```
+
+Допустимий діапазон gmediarender: `49152..65535`. Docker не містить припущень про `eth0`, `wlan0`, `enp*` або адресу локальної мережі.
 
 ## Sources
 
