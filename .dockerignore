@@ -3,12 +3,10 @@
 .gitignore
 .vscode
 .idea
-.venv
 docker-data
 README.md
 docs
 tests
-requirements-test.txt
 compose*.yaml
 sources/proaudio-player-native/target
 sources/proaudio-player-webui/node_modules
