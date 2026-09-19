@@ -90,6 +90,10 @@ test_build_contract() {
     assert_contains Dockerfile 'gstreamer1.0-libav'
     assert_contains Dockerfile 'gstreamer1.0-plugins-good'
     assert_contains Dockerfile 'gstreamer1.0-pulseaudio'
+    assert_contains Dockerfile '/usr/share/proaudio-player/announcements/'
+    assert_contains docker/docker-entrypoint.sh 'DEFAULT_MEDIA_DIR=/usr/share/proaudio-player/announcements'
+    assert_contains docker/docker-entrypoint.sh 'alarm_start.mp3 alarm_end.mp3 minute_silence.mp3'
+    assert_contains docker/docker-entrypoint.sh 'if [[ ! -f "$MEDIA_DIR/$media_file" ]]'
 }
 
 test_python_free_runtime() {
