@@ -40,9 +40,12 @@ Docker runtime не містить Raspberry Pi, SoC, board name, конкрет
 ```text
 /dev/snd
 /run/udev:ro
+ALSA character devices major 116
 ```
 
-Він не знає модель DAC, USB VID/PID, Raspberry Pi або назву ALSA card. Під час старту контейнер читає фактичний GID переданого `/dev/snd` і додає runtime-користувача до відповідної групи всередині контейнера, тому збіг GID `audio` між різними Linux-хостами не потрібен.
+`/dev/snd` передається як live bind mount, а cgroup дозволяє весь стандартний ALSA character-device major. Тому USB/PCI аудіопристрої, які з’являються після старту container, не потребують його перезапуску лише для появи нового device node. `/run/udev` передається read-only для актуальних device metadata.
+
+Docker не знає модель DAC, USB VID/PID, Raspberry Pi або назву ALSA card. Під час старту контейнер читає фактичний GID переданого `/dev/snd` і додає runtime-користувача до відповідної групи всередині контейнера, тому збіг GID `audio` між різними Linux-хостами не потрібен.
 
 ## Network discovery
 
