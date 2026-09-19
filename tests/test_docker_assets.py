@@ -179,6 +179,15 @@ def test_runtime_packages_native_audio_policy_instead_of_docker_fork():
     assert not (ROOT / "docker/watch-audio-output.sh").exists()
 
 
+def test_airplay_dbus_policy_allows_mpris_and_native_receiver_state():
+    policy = (ROOT / "docker/proaudio-player-mpris.conf").read_text(encoding="utf-8")
+
+    assert 'own_prefix="org.mpris.MediaPlayer2.ShairportSync"' in policy
+    assert 'send_destination_prefix="org.mpris.MediaPlayer2.ShairportSync"' in policy
+    assert 'own_prefix="org.gnome.ShairportSync"' in policy
+    assert 'send_destination_prefix="org.gnome.ShairportSync"' in policy
+
+
 def test_output_watcher_starts_only_after_initial_graph_is_ready():
     wrapper = (ROOT / "docker/run-output-watch.sh").read_text(encoding="utf-8")
     supervisor = (ROOT / "docker/supervisord.conf").read_text(encoding="utf-8")
