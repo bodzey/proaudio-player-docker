@@ -79,6 +79,20 @@ is_true() {
     [[ "${1,,}" =~ ^(1|true|yes|on)$ ]]
 }
 
+route_interface() {
+    local target="$1"
+    ip -4 route get "$target" 2>/dev/null | awk '
+        {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "dev" && (i + 1) <= NF) {
+                    print $(i + 1)
+                    exit
+                }
+            }
+        }
+    '
+}
+
 detect_lan_interface() {
     local requested="${PROAUDIO_LAN_INTERFACE:-}"
     if [[ -n "$requested" ]]; then
@@ -91,11 +105,16 @@ detect_lan_interface() {
     fi
 
     local interface
-    interface="$(ip -4 route show default 2>/dev/null | awk '$1 == "default" && $5 != "" { print $5; exit }')"
-    if [[ -z "$interface" ]]; then
+    interface="$(route_interface 239.255.255.250)"
+    if [[ -z "$interface" || "$interface" == "lo" ]]; then
+        interface="$(route_interface 1.1.1.1)"
+    fi
+    if [[ -z "$interface" || "$interface" == "lo" ]]; then
         interface="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 != "lo" { print $2; exit }')"
     fi
-    [[ -n "$interface" ]] || return 1
+
+    [[ -n "$interface" && "$interface" != "lo" ]] || return 1
+    ip link show dev "$interface" >/dev/null 2>&1 || return 1
     printf '%s\n' "$interface"
 }
 
