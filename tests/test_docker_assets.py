@@ -120,6 +120,7 @@ def test_dockerfile_builds_projects_through_their_own_contracts():
     assert "gstreamer1.0-plugins-good" in dockerfile
     assert "gstreamer1.0-pulseaudio" in dockerfile
     assert "docker/run-dlna.sh" in dockerfile
+    assert "config/avahi" not in dockerfile
 
 
 def test_integrated_dlna_uses_generic_lan_discovery():
