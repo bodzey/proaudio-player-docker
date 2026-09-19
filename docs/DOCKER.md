@@ -35,7 +35,7 @@ physical LAN
 +------------------------------------------------+
 ```
 
-Supervisor є process supervisor контейнера. Docker бачить один service/container, а внутрішні media engines залишаються ізольованими процесами.
+`s6-svscan` є process supervisor контейнера. Docker бачить один service/container, а внутрішні media engines залишаються окремими supervised-процесами без Python runtime.
 
 ## DLNA
 
@@ -103,7 +103,7 @@ Static:
 
 ```bash
 docker compose config --quiet
-pytest -q
+bash tests/contract.sh
 ```
 
 Runtime:
