@@ -38,4 +38,4 @@ jobs:
         run: |
           test "$(docker compose config --services | wc -l)" -eq 1
           test "$(docker compose config --services)" = "proaudio-player"
-          ! grep -RniE 'platform:[[:space:]].*amd64|--interface-name=eth0|raspberry|bcm(27|28|43)|mmcblk|vc4'             Dockerfile compose.yaml docker
+          ! grep -RniE 'platform:[[:space:]].*amd64|--interface-name=eth0|PROAUDIO_LAN_INTERFACE|raspberry|bcm(27|28|43)|mmcblk|vc4'             Dockerfile compose.yaml docker
