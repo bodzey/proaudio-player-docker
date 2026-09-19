@@ -75,6 +75,7 @@ RUN apt-get update \
        gstreamer1.0-libav \
        gstreamer1.0-plugins-good \
        gstreamer1.0-pulseaudio \
+       iproute2 \
        libspa-0.2-modules \
        mpc \
        mpd \

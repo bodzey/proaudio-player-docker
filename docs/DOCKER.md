@@ -39,25 +39,25 @@ Supervisor є process supervisor контейнера. Docker бачить од�
 
 ## DLNA
 
-Public protocol ownership залишається у native control plane. gmediarender є внутрішнім transport/decoder worker у тому самому container:
+Docker runtime використовує gmediarender як єдиний LAN-facing UPnP/DLNA MediaRenderer, а native підключається до нього як до transport backend:
 
 ```text
 LAN / SSDP / SOAP
         |
         v
-proaudio-player-native
+gmediarender -> proaudio_player_music
+        ^
         |
         | PROAUDIO_DLNA_ENDPOINT
-        v
-127.0.0.1:49494
         |
-        v
-gmediarender -> proaudio_player_music
+proaudio-player-native
 ```
 
-Entry point валідовує `PROAUDIO_DLNA_PORT`, задає loopback endpoint і вмикає native public UPnP лише коли `ENABLE_DLNA=true`. gmediarender запускається з `--interface-name=lo`, тому transport worker не рекламується як другий LAN renderer і не залежить від назви чи адреси мережевого інтерфейсу хоста.
+Це важливо для сумісності: libupnp, який використовує gmediarender, не приймає loopback interface у `UpnpInit2`, тому `--interface-name=lo` не є валідним transport isolation mechanism. Entry point тепер визначає активний multicast IPv4 interface через route до SSDP group `239.255.255.250`, перевіряє flags `UP` + `MULTICAST` і фактичну IPv4 адресу, після чого передає interface та endpoint обом процесам.
 
-Так немає sidecar-container, приватної Docker subnet, hardcoded `eth0` або Docker-specific дублювання DLNA control plane.
+За потреби interface можна задати явно через `PROAUDIO_DLNA_INTERFACE`. Фіксованих `eth0`, `wlan0` або board-specific назв немає. У Docker native public UPnP вимкнений, щоб у LAN був рівно один renderer; native продовжує володіти audio routing, source arbitration, status aggregation та Web API.
+
+Так немає sidecar-container, приватної Docker subnet або hardware-specific network policy.
 
 ## Audio
 

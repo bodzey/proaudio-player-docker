@@ -79,6 +79,58 @@ is_true() {
     [[ "${1,,}" =~ ^(1|true|yes|on)$ ]]
 }
 
+interface_flags() {
+    local flags
+    flags="$(ip -o link show dev "$1" 2>/dev/null | sed -n 's/^[^<]*<\([^>]*\)>.*/\1/p')"
+    printf '%s' "$flags"
+}
+
+interface_ipv4() {
+    ip -o -4 addr show dev "$1" scope global 2>/dev/null \
+        | awk 'NR == 1 { split($4, address, "/"); print address[1] }'
+}
+
+interface_is_usable_for_dlna() {
+    local flags address
+    flags="$(interface_flags "$1")"
+    address="$(interface_ipv4 "$1")"
+    [[ -n "$address" ]] \
+        && [[ ",$flags," == *,UP,* ]] \
+        && [[ ",$flags," == *,MULTICAST,* ]]
+}
+
+select_dlna_interface() {
+    local requested route candidate
+
+    requested="${PROAUDIO_DLNA_INTERFACE:-}"
+    if [[ -n "$requested" ]]; then
+        if [[ "$requested" == "lo" ]] || ! interface_is_usable_for_dlna "$requested"; then
+            echo "PROAUDIO_DLNA_INTERFACE=$requested не є активним multicast IPv4 інтерфейсом." >&2
+            return 1
+        fi
+        printf '%s\n' "$requested"
+        return 0
+    fi
+
+    route="$(ip -o -4 route get 239.255.255.250 2>/dev/null | head -n 1 || true)"
+    candidate="$(awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }' <<<"$route")"
+    if [[ -n "$candidate" ]] && [[ "$candidate" != "lo" ]] && interface_is_usable_for_dlna "$candidate"; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    while IFS= read -r candidate; do
+        [[ "$candidate" == "lo" ]] && continue
+        if interface_is_usable_for_dlna "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done < <(ip -o -4 addr show scope global up 2>/dev/null | awk '{print $2}' | awk '!seen[$0]++')
+
+    echo "Не знайдено активного multicast IPv4 інтерфейсу для DLNA." >&2
+    return 1
+}
+
 if is_true "${ENABLE_DLNA:-true}"; then
     DLNA_PORT="${PROAUDIO_DLNA_PORT:-49494}"
     if ! [[ "$DLNA_PORT" =~ ^[0-9]+$ ]] || ((DLNA_PORT < 49152 || DLNA_PORT > 65535)); then
@@ -86,13 +138,21 @@ if is_true "${ENABLE_DLNA:-true}"; then
         exit 1
     fi
 
-    # gmediarender is a private decoder/transport worker. Native owns the
-    # LAN-facing UPnP renderer, state, source arbitration and volume controls.
-    export PROAUDIO_DLNA_ENDPOINT="http://127.0.0.1:$DLNA_PORT/upnp/control/rendertransport1"
-    export PROAUDIO_UPNP_PUBLIC=true
-    echo "DLNA: native renderer public, transport worker on loopback:$DLNA_PORT"
+    PROAUDIO_DLNA_INTERFACE="$(select_dlna_interface)"
+    DLNA_ADDRESS="$(interface_ipv4 "$PROAUDIO_DLNA_INTERFACE")"
+    export PROAUDIO_DLNA_INTERFACE
+    export PROAUDIO_DLNA_FRIENDLY_NAME="${PROAUDIO_DLNA_FRIENDLY_NAME:-ProAudio Player}"
+    export PROAUDIO_DLNA_ENDPOINT="http://$DLNA_ADDRESS:$DLNA_PORT/upnp/control/rendertransport1"
+
+    # libupnp deliberately rejects loopback interfaces. In Docker host-network
+    # mode gmediarender therefore owns the public UPnP/DLNA protocol endpoint,
+    # while native consumes it as the transport backend and remains the player
+    # control plane for audio routing, source state and the Web API.
+    export PROAUDIO_UPNP_PUBLIC=false
+    echo "DLNA: gmediarender public on $PROAUDIO_DLNA_INTERFACE ($DLNA_ADDRESS:$DLNA_PORT); native public UPnP disabled"
 else
     unset PROAUDIO_DLNA_ENDPOINT
+    unset PROAUDIO_DLNA_INTERFACE
     export PROAUDIO_UPNP_PUBLIC=false
 fi
 

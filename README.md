@@ -48,21 +48,30 @@ Docker runtime не містить Raspberry Pi, SoC, board name, конкрет
 
 Основний container використовує `network_mode: host`, оскільки AirPlay, Avahi, Spotify Connect і native DLNA/UPnP використовують LAN multicast/discovery.
 
-DLNA розділений за відповідальністю, але не за контейнерами:
+DLNA реалізований у тому самому container через gmediarender, а native використовує його як transport backend:
 
 ```text
-LAN controller -> proaudio-player-native -> 127.0.0.1:49494 -> gmediarender -> MUSIC bus
+LAN controller -> gmediarender -> MUSIC bus
+                         ^
+                         |
+               proaudio-player-native
 ```
 
-`proaudio-player-native` є єдиним LAN-facing MediaRenderer і володіє UPnP discovery, transport API, source arbitration та software volume/mute. `gmediarender` працює лише як внутрішній decoder/transport worker на loopback і не потребує знати назву фізичного LAN-інтерфейсу.
+У Docker runtime саме gmediarender володіє зовнішнім UPnP/DLNA MediaRenderer endpoint. Це використовує повну UPnP eventing/control реалізацію libupnp та не дублює renderer у native. Native отримує адресу transport endpoint через `PROAUDIO_DLNA_ENDPOINT`, стежить за станом джерела та зберігає ownership над audio routing, source arbitration і Web API.
 
-Порт внутрішнього transport worker:
+Інтерфейс не захардкоджений. Entry point визначає активний multicast IPv4 interface через системну routing table для SSDP `239.255.255.250`; за потреби його можна явно задати через:
+
+```text
+PROAUDIO_DLNA_INTERFACE=<interface>
+```
+
+Порт renderer:
 
 ```text
 PROAUDIO_DLNA_PORT=49494
 ```
 
-Допустимий діапазон gmediarender: `49152..65535`. Docker не містить припущень про `eth0`, `wlan0`, `enp*` або адресу локальної мережі.
+Допустимий діапазон gmediarender: `49152..65535`. Loopback не використовується, оскільки libupnp відхиляє loopback interface для `UpnpInit2`. Docker не містить припущень про `eth0`, `wlan0`, `enp*` або адресу локальної мережі.
 
 ## Sources
 
