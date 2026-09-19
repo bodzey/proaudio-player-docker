@@ -59,6 +59,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIPEWIRE_RUNTIME_DIR=/run/proaudio-player \
     PULSE_SERVER=unix:/run/proaudio-player/pulse/native \
     DBUS_SESSION_BUS_ADDRESS=unix:path=/run/proaudio-player/session-bus \
+    DISABLE_RTKIT=1 \
     PROAUDIO_WEBUI_DIR=/usr/share/proaudio-player/webui \
     PROAUDIO_HTTP_PORT=5371 \
     HEALTHCHECK_PORT=5371
