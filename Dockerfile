@@ -119,6 +119,7 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/proaudio-player.conf
 COPY docker/docker-entrypoint.sh \
      docker/discover-audio.sh \
      docker/run-audio-buses.sh \
+     docker/run-output-watch.sh \
      docker/run-dlna.sh \
      docker/run-service.sh \
      docker/container-healthcheck.sh \
@@ -132,6 +133,7 @@ RUN chmod 0755 \
        /usr/local/bin/docker-entrypoint.sh \
        /usr/local/bin/discover-audio.sh \
        /usr/local/bin/run-audio-buses.sh \
+       /usr/local/bin/run-output-watch.sh \
        /usr/local/bin/run-dlna.sh \
        /usr/local/bin/run-service.sh \
        /usr/local/bin/container-healthcheck.sh \
