@@ -79,72 +79,21 @@ is_true() {
     [[ "${1,,}" =~ ^(1|true|yes|on)$ ]]
 }
 
-route_interface() {
-    local target="$1"
-    ip -4 route get "$target" 2>/dev/null | awk '
-        {
-            for (i = 1; i <= NF; i++) {
-                if ($i == "dev" && (i + 1) <= NF) {
-                    print $(i + 1)
-                    exit
-                }
-            }
-        }
-    '
-}
-
-detect_lan_interface() {
-    local requested="${PROAUDIO_LAN_INTERFACE:-}"
-    if [[ -n "$requested" ]]; then
-        ip link show dev "$requested" >/dev/null 2>&1 || {
-            echo "PROAUDIO_LAN_INTERFACE не існує: $requested" >&2
-            return 1
-        }
-        printf '%s\n' "$requested"
-        return 0
-    fi
-
-    local interface
-    interface="$(route_interface 239.255.255.250)"
-    if [[ -z "$interface" || "$interface" == "lo" ]]; then
-        interface="$(route_interface 1.1.1.1)"
-    fi
-    if [[ -z "$interface" || "$interface" == "lo" ]]; then
-        interface="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 != "lo" { print $2; exit }')"
-    fi
-
-    [[ -n "$interface" && "$interface" != "lo" ]] || return 1
-    ip link show dev "$interface" >/dev/null 2>&1 || return 1
-    printf '%s\n' "$interface"
-}
-
-detect_interface_ipv4() {
-    local interface="$1"
-    ip -4 -o addr show dev "$interface" scope global 2>/dev/null         | awk '{ split($4, a, "/"); print a[1]; exit }'
-}
-
-export PROAUDIO_UPNP_PUBLIC=false
 if is_true "${ENABLE_DLNA:-true}"; then
-    DLNA_INTERFACE="$(detect_lan_interface || true)"
-    DLNA_ADDRESS=""
-    if [[ -n "$DLNA_INTERFACE" ]]; then
-        DLNA_ADDRESS="$(detect_interface_ipv4 "$DLNA_INTERFACE")"
+    DLNA_PORT="${PROAUDIO_DLNA_PORT:-49494}"
+    if ! [[ "$DLNA_PORT" =~ ^[0-9]+$ ]] || ((DLNA_PORT < 49152 || DLNA_PORT > 65535)); then
+        echo "Некоректний PROAUDIO_DLNA_PORT: $DLNA_PORT (допустимо 49152..65535)" >&2
+        exit 1
     fi
 
-    if [[ -z "$DLNA_INTERFACE" || -z "$DLNA_ADDRESS" ]]; then
-        echo "DLNA вимкнено: не знайдено придатного IPv4 LAN-інтерфейсу." >&2
-        export ENABLE_DLNA=false
-        unset PROAUDIO_DLNA_ENDPOINT
-    else
-        DLNA_PORT="${PROAUDIO_DLNA_PORT:-49494}"
-        if ! [[ "$DLNA_PORT" =~ ^[0-9]+$ ]] || ((DLNA_PORT < 1024 || DLNA_PORT > 65535)); then
-            echo "Некоректний PROAUDIO_DLNA_PORT: $DLNA_PORT" >&2
-            exit 1
-        fi
-        export PROAUDIO_LAN_INTERFACE="$DLNA_INTERFACE"
-        export PROAUDIO_DLNA_ENDPOINT="http://$DLNA_ADDRESS:$DLNA_PORT/upnp/control/rendertransport1"
-        echo "DLNA renderer: interface=$DLNA_INTERFACE address=$DLNA_ADDRESS port=$DLNA_PORT"
-    fi
+    # gmediarender is a private decoder/transport worker. Native owns the
+    # LAN-facing UPnP renderer, state, source arbitration and volume controls.
+    export PROAUDIO_DLNA_ENDPOINT="http://127.0.0.1:$DLNA_PORT/upnp/control/rendertransport1"
+    export PROAUDIO_UPNP_PUBLIC=true
+    echo "DLNA: native renderer public, transport worker on loopback:$DLNA_PORT"
+else
+    unset PROAUDIO_DLNA_ENDPOINT
+    export PROAUDIO_UPNP_PUBLIC=false
 fi
 
 # The main container uses host networking for multicast/discovery, so Docker
@@ -182,9 +131,31 @@ chown proaudio-player:proaudio-player \
     "$CONFIG_DIR/alerts-token" "$EFFECTIVE_AUDIO_ENV"
 chmod 0600 "$CONFIG_DIR/alerts-token"
 
-if [[ "${AUDIO_MODE:-null}" == "hardware" && ! -d /dev/snd ]]; then
-    echo "AUDIO_MODE=hardware, але /dev/snd не передано в контейнер." >&2
-    exit 1
+configure_audio_device_access() {
+    local node gid group_name
+
+    node="$(find /dev/snd -maxdepth 1 -type c -print -quit 2>/dev/null || true)"
+    if [[ -z "$node" ]]; then
+        echo "AUDIO_MODE=hardware, але у /dev/snd немає ALSA device nodes." >&2
+        return 1
+    fi
+
+    gid="$(stat -c '%g' "$node")"
+    group_name="$(getent group "$gid" | cut -d: -f1 || true)"
+    if [[ -z "$group_name" ]]; then
+        group_name=proaudio-host-audio
+        groupadd --gid "$gid" "$group_name"
+    fi
+
+    usermod -a -G "$group_name" proaudio-player
+}
+
+if [[ "${AUDIO_MODE:-null}" == "hardware" ]]; then
+    if [[ ! -d /dev/snd ]]; then
+        echo "AUDIO_MODE=hardware, але /dev/snd не передано в контейнер." >&2
+        exit 1
+    fi
+    configure_audio_device_access
 fi
 
 /usr/local/bin/preflight.sh
