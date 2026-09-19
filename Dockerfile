@@ -75,7 +75,6 @@ RUN apt-get update \
        gstreamer1.0-libav \
        gstreamer1.0-plugins-good \
        gstreamer1.0-pulseaudio \
-       iproute2 \
        libspa-0.2-modules \
        mpc \
        mpd \
@@ -92,8 +91,7 @@ RUN apt-get update \
        util-linux \
        wireplumber \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 1000 --shell /bin/bash proaudio-player \
-    && usermod -a -G audio proaudio-player
+    && useradd --create-home --uid 1000 --shell /bin/bash proaudio-player
 
 WORKDIR /opt/proaudio-player
 
