@@ -179,6 +179,18 @@ def test_runtime_packages_native_audio_policy_instead_of_docker_fork():
     assert not (ROOT / "docker/watch-audio-output.sh").exists()
 
 
+def test_output_watcher_starts_only_after_initial_graph_is_ready():
+    wrapper = (ROOT / "docker/run-output-watch.sh").read_text(encoding="utf-8")
+    supervisor = (ROOT / "docker/supervisord.conf").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "proaudio-player-ready" in wrapper
+    assert 'pactl info' in wrapper
+    assert 'exec "$WATCHER"' in wrapper
+    assert "command=/usr/local/bin/run-output-watch.sh" in supervisor
+    assert "docker/run-output-watch.sh" in dockerfile
+
+
 def test_runtime_uses_native_defaults_with_explicit_audio_overrides():
     entrypoint = (ROOT / "docker/docker-entrypoint.sh").read_text(encoding="utf-8")
     buses = (ROOT / "docker/run-audio-buses.sh").read_text(encoding="utf-8")
