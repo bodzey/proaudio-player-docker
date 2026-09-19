@@ -14,8 +14,8 @@ install -d -o proaudio-player -g proaudio-player -m 0700 \
 install -d -o proaudio-player -g proaudio-player -m 0750 \
     /home/proaudio-player/.local/state/wireplumber
 
-# /run/proaudio-player is a shared ephemeral coordination volume for the main
-# runtime and the isolated DLNA worker. Never carry sockets/locks across starts.
+# /run/proaudio-player is ephemeral container runtime state.
+# Never carry sockets or locks across starts.
 find "$RUNTIME_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 install -d -o proaudio-player -g proaudio-player -m 0700 "$RUNTIME_DIR"
 
@@ -73,6 +73,59 @@ chmod 0644 "$EFFECTIVE_AUDIO_ENV"
 if ! [[ "$HTTP_PORT" =~ ^[0-9]+$ ]] || ((HTTP_PORT < 1 || HTTP_PORT > 65535)); then
     echo "Некоректний PROAUDIO_HTTP_PORT: $HTTP_PORT" >&2
     exit 1
+fi
+
+is_true() {
+    [[ "${1,,}" =~ ^(1|true|yes|on)$ ]]
+}
+
+detect_lan_interface() {
+    local requested="${PROAUDIO_LAN_INTERFACE:-}"
+    if [[ -n "$requested" ]]; then
+        ip link show dev "$requested" >/dev/null 2>&1 || {
+            echo "PROAUDIO_LAN_INTERFACE не існує: $requested" >&2
+            return 1
+        }
+        printf '%s\n' "$requested"
+        return 0
+    fi
+
+    local interface
+    interface="$(ip -4 route show default 2>/dev/null | awk '$1 == "default" && $5 != "" { print $5; exit }')"
+    if [[ -z "$interface" ]]; then
+        interface="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 != "lo" { print $2; exit }')"
+    fi
+    [[ -n "$interface" ]] || return 1
+    printf '%s\n' "$interface"
+}
+
+detect_interface_ipv4() {
+    local interface="$1"
+    ip -4 -o addr show dev "$interface" scope global 2>/dev/null         | awk '{ split($4, a, "/"); print a[1]; exit }'
+}
+
+export PROAUDIO_UPNP_PUBLIC=false
+if is_true "${ENABLE_DLNA:-true}"; then
+    DLNA_INTERFACE="$(detect_lan_interface || true)"
+    DLNA_ADDRESS=""
+    if [[ -n "$DLNA_INTERFACE" ]]; then
+        DLNA_ADDRESS="$(detect_interface_ipv4 "$DLNA_INTERFACE")"
+    fi
+
+    if [[ -z "$DLNA_INTERFACE" || -z "$DLNA_ADDRESS" ]]; then
+        echo "DLNA вимкнено: не знайдено придатного IPv4 LAN-інтерфейсу." >&2
+        export ENABLE_DLNA=false
+        unset PROAUDIO_DLNA_ENDPOINT
+    else
+        DLNA_PORT="${PROAUDIO_DLNA_PORT:-49494}"
+        if ! [[ "$DLNA_PORT" =~ ^[0-9]+$ ]] || ((DLNA_PORT < 1024 || DLNA_PORT > 65535)); then
+            echo "Некоректний PROAUDIO_DLNA_PORT: $DLNA_PORT" >&2
+            exit 1
+        fi
+        export PROAUDIO_LAN_INTERFACE="$DLNA_INTERFACE"
+        export PROAUDIO_DLNA_ENDPOINT="http://$DLNA_ADDRESS:$DLNA_PORT/upnp/control/rendertransport1"
+        echo "DLNA renderer: interface=$DLNA_INTERFACE address=$DLNA_ADDRESS port=$DLNA_PORT"
+    fi
 fi
 
 # The main container uses host networking for multicast/discovery, so Docker
