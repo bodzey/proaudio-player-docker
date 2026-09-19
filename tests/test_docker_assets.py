@@ -127,7 +127,8 @@ def test_integrated_dlna_uses_generic_lan_discovery():
     script = (ROOT / "docker/run-dlna.sh").read_text(encoding="utf-8")
 
     assert 'PROAUDIO_LAN_INTERFACE:-' in entrypoint
-    assert "ip -4 route show default" in entrypoint
+    assert 'route_interface 239.255.255.250' in entrypoint
+    assert 'route_interface 1.1.1.1' in entrypoint
     assert "ip -4 -o addr show scope global" in entrypoint
     assert 'export PROAUDIO_UPNP_PUBLIC=false' in entrypoint
     assert 'export PROAUDIO_DLNA_ENDPOINT=' in entrypoint
