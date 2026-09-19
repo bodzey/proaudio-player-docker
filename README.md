@@ -25,7 +25,7 @@ proaudio-player
 - `proaudio-player-native`;
 - Web UI, який віддає native daemon.
 
-Окремого DLNA sidecar-контейнера немає.
+Окремого DLNA sidecar-контейнера немає. `dockerctl up-test` і `up-hardware` запускають Compose з `--remove-orphans`, тому старий sidecar від попередньої версії автоматично видаляється.
 
 ## Hardware neutrality
 
