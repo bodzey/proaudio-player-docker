@@ -30,7 +30,10 @@ jobs:
         run: docker compose config --quiet
 
       - name: Run repository-owned tests
-        run: >-
-          python -m pytest -q
-          -k "not dlna_worker_is_private_and_matches_native_endpoint
-          and not expected_dev_source_assets_exist"
+        run: python -m pytest -q -k "not expected_dev_source_assets_exist"
+
+      - name: Check portable single-container contract
+        run: |
+          test "$(docker compose config --services | wc -l)" -eq 1
+          test "$(docker compose config --services)" = "proaudio-player"
+          ! grep -RniE 'platform:[[:space:]].*amd64|--interface-name=eth0|raspberry|bcm(27|28|43)|mmcblk|vc4'             Dockerfile compose.yaml docker
