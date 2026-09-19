@@ -132,6 +132,10 @@ test_s6_services() {
     assert_contains docker/s6-service-run '/usr/local/bin/proaudio-player-native'
     assert_contains docker/s6-service-run 'PROAUDIO_AUDIO_ENV=/run/proaudio-player/audio.env'
     assert_contains docker/s6-service-run 'AUDIO_ENV=/run/proaudio-player/audio.env'
+    assert_contains docker/s6-service-run 'wait_for_system_bus'
+    assert_contains docker/s6-service-run 'wait_for_pipewire'
+    assert_contains docker/s6-service-run 'wireplumber --profile main-systemwide'
+    assert_contains Dockerfile 'DISABLE_RTKIT=1'
 }
 
 test_runtime_policy() {
