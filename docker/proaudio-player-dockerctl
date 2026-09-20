@@ -195,6 +195,23 @@ case "${1:-}" in
     logs)
         "${base[@]}" logs -f --tail "${2:-150}"
         ;;
+    mdns)
+        echo "Host UDP/5353 sockets:"
+        if ! ss -H -lunp 'sport = :5353' 2>/dev/null; then
+            ss -H -lun 'sport = :5353' 2>/dev/null || true
+        fi
+        echo
+        echo "Container startup diagnostic:"
+        if "${base[@]}" exec -T "$SERVICE" test -e /run/proaudio-player/external-mdns-stack; then
+            echo "external mDNS responder was present before container services started"
+        else
+            echo "no external mDNS responder was detected before container services started"
+        fi
+        echo
+        "${base[@]}" exec -T "$SERVICE" awk '
+            /^allow-interfaces=/ { print "Avahi " $0 }
+        ' /etc/avahi/avahi-daemon.conf
+        ;;
     sinks)
         "${base[@]}" exec -u proaudio-player "$SERVICE" pactl list short sinks
         ;;
@@ -225,7 +242,7 @@ case "${1:-}" in
         "${base[@]}" exec "$SERVICE" bash
         ;;
     *)
-        echo "Використання: docker/proaudio-player-dockerctl {init|sync-sources|revisions|build|select-audio|up-test|up-hardware|down|status|logs [рядки]|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
+        echo "Використання: docker/proaudio-player-dockerctl {init|sync-sources|revisions|build|select-audio|up-test|up-hardware|down|status|logs [рядки]|mdns|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
         exit 2
         ;;
 esac
