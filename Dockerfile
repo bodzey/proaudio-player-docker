@@ -59,7 +59,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIPEWIRE_RUNTIME_DIR=/run/proaudio-player \
     PULSE_SERVER=unix:/run/proaudio-player/pulse/native \
     DBUS_SESSION_BUS_ADDRESS=unix:path=/run/proaudio-player/session-bus \
-    DISABLE_RTKIT=1 \
     PROAUDIO_WEBUI_DIR=/usr/share/proaudio-player/webui \
     PROAUDIO_HTTP_PORT=5371 \
     HEALTHCHECK_PORT=5371
@@ -115,6 +114,8 @@ COPY --from=native-builder /build/proaudio-player-native/scripts/proaudio-player
 
 COPY --from=native-builder /build/proaudio-player-native/config/wireplumber/ \
      /etc/wireplumber/wireplumber.conf.d/
+COPY docker/50-proaudio-rt.conf /etc/pipewire/pipewire.conf.d/50-proaudio-rt.conf
+COPY docker/50-proaudio-rt.conf /etc/pipewire/pipewire-pulse.conf.d/50-proaudio-rt.conf
 COPY docker/proaudio-player-mpris.conf /etc/dbus-1/system.d/proaudio-player-mpris.conf
 COPY docker/s6-service-run /usr/local/bin/s6-service-run
 COPY docker/docker-entrypoint.sh \
