@@ -27,15 +27,34 @@ RUN npm run build
 FROM rust:1.88-bookworm AS spotifyd-builder
 
 ARG SPOTIFYD_VERSION=0.4.2
+ARG SPOTIFYD_REVISION=c5b94367014856a8c541dea565cbd332e034fb9e
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-       libdbus-1-dev libpulse-dev libssl-dev pkg-config \
-    && cargo install spotifyd --locked --version "${SPOTIFYD_VERSION}" \
+       git libdbus-1-dev libpulse-dev libssl-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build/spotifyd
+
+RUN git init \
+    && git remote add origin https://github.com/Spotifyd/spotifyd.git \
+    && git fetch --depth=1 origin "${SPOTIFYD_REVISION}" \
+    && git checkout --detach FETCH_HEAD \
+    && test "$(git rev-parse HEAD)" = "${SPOTIFYD_REVISION}" \
+    && test "$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)" = "${SPOTIFYD_VERSION}" \
+    && sed -i \
+       's|^librespot-discovery = "0.8.0"$|librespot-discovery = { version = "0.8.0", default-features = false, features = ["native-tls", "with-avahi"] }|' \
+       Cargo.toml \
+    && grep -Fq 'features = ["native-tls", "with-avahi"]' Cargo.toml \
+    && cargo tree --edges features --invert librespot-discovery > /tmp/spotifyd-discovery-features \
+    && grep -Fq 'librespot-discovery feature "with-avahi"' /tmp/spotifyd-discovery-features \
+    && ! grep -Fq 'librespot-discovery feature "with-libmdns"' /tmp/spotifyd-discovery-features \
+    && cargo install --path . --locked \
        --no-default-features --features pulseaudio_backend,dbus_mpris \
        --root /spotifyd-install \
+    && /spotifyd-install/bin/spotifyd --version | grep -Fq "${SPOTIFYD_VERSION}" \
     && strip /spotifyd-install/bin/spotifyd \
-    && rm -rf /var/lib/apt/lists/* /usr/local/cargo/registry /usr/local/cargo/git
+    && rm -rf /usr/local/cargo/registry /usr/local/cargo/git /build/spotifyd/.git
 
 
 FROM debian:trixie-slim AS runtime
