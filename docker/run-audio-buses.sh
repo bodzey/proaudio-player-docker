@@ -6,16 +6,25 @@ OUTPUT_ENV=/var/lib/proaudio-player-alert/audio-output.env
 BUS_SCRIPT=/usr/libexec/proaudio-player/audio-buses.sh
 READY_FILE="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is not set}/proaudio-player-ready"
 cleaned_up=0
+shutdown_requested=0
 
 cleanup() {
     ((cleaned_up == 0)) || return 0
     cleaned_up=1
     rm -f -- "$READY_FILE"
-    "$BUS_SCRIPT" stop || true
+
+    # During whole-container shutdown PipeWire is being terminated in parallel.
+    # Do not synchronously issue pactl unload operations against a disappearing
+    # server. The saved module state is intentionally retained; the next
+    # start_buses transaction removes stale modules before rebuilding the graph.
+    if ((shutdown_requested == 0)); then
+        "$BUS_SCRIPT" stop || true
+    fi
 }
 
 shutdown() {
     trap - INT TERM
+    shutdown_requested=1
     cleanup
     exit 0
 }
