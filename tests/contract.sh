@@ -130,9 +130,10 @@ test_build_contract() {
     assert_contains docker/docker-entrypoint.sh "ss -H -lun 'sport = :5353'"
     assert_contains docker/proaudio-player-dockerctl 'Host UDP/5353 sockets:'
     assert_contains docker/proaudio-player-dockerctl 'shutdown-profile'
-    assert_contains docker/proaudio-player-dockerctl 's6-svc -d "$dir"'
+    assert_contains docker/proaudio-player-dockerctl 's6-svc -T 7000 -wd -d "$dir"'
     assert_contains docker/proaudio-player-dockerctl 's6-svstat -u "$dir"'
     assert_not_contains docker/proaudio-player-dockerctl 's6-svstat -d "$dir"'
+    assert_not_contains docker/proaudio-player-dockerctl 'for _ in {1..140}'
     assert_contains docker/proaudio-player-dockerctl 'STOP_MS'
     assert_contains docker/proaudio-player-dockerctl 'Host mDNS services:'
     assert_contains docker/proaudio-player-dockerctl 'systemd-resolved'
