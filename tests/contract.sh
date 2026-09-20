@@ -125,6 +125,8 @@ test_build_contract() {
     assert_contains docker/configure-discovery.sh 'allow-interfaces=$DISCOVERY_INTERFACE'
     assert_contains docker/configure-discovery.sh 'disallow-other-stacks=no'
     assert_contains docker/docker-entrypoint.sh 'external-mdns-stack'
+    assert_contains docker/docker-entrypoint.sh 'external-mdns-sockets'
+    assert_contains docker/proaudio-player-dockerctl 'UDP/5353 sockets present before container services started:'
     assert_contains docker/docker-entrypoint.sh "ss -H -lun 'sport = :5353'"
     assert_contains docker/proaudio-player-dockerctl 'Host UDP/5353 sockets:'
     assert_contains docker/proaudio-player-dockerctl 'Host mDNS services:'
