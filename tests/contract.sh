@@ -68,6 +68,10 @@ test_compose() {
     assert_not_contains compose.yaml 'ports:'
 
     assert_contains compose.hardware.yaml 'AUDIO_MODE: hardware'
+    assert_contains compose.hardware.yaml 'SYS_NICE'
+    assert_not_contains compose.yaml 'SYS_NICE'
+    assert_not_contains compose.yaml 'privileged:'
+    assert_not_contains compose.hardware.yaml 'privileged:'
     assert_contains compose.hardware.yaml 'c 116:* rwm'
     assert_contains compose.hardware.yaml '/dev/snd:/dev/snd'
     assert_contains compose.hardware.yaml '/run/udev:/run/udev:ro'
