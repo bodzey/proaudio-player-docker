@@ -61,6 +61,9 @@ test_compose() {
     assert_not_contains compose.yaml 'privileged:'
     assert_contains compose.yaml 'AUDIO_MODE: "${AUDIO_MODE:-null}"'
     assert_contains compose.yaml 'PROAUDIO_DLNA_INTERFACE: "${PROAUDIO_DLNA_INTERFACE:-}"'
+    assert_contains compose.yaml 'PROAUDIO_DEVICE_ID: "${PROAUDIO_DEVICE_ID:-}"'
+    assert_contains compose.yaml 'PROAUDIO_DEVICE_NAME: "${PROAUDIO_DEVICE_NAME:-ProAudio Player}"'
+    assert_contains compose.yaml 'PROAUDIO_API_MAJOR: "${PROAUDIO_API_MAJOR:-1}"'
     assert_not_contains compose.yaml 'PROAUDIO_LAN_INTERFACE'
     assert_not_contains compose.yaml 'platform:'
     assert_not_contains compose.yaml 'ports:'
@@ -103,6 +106,13 @@ test_build_contract() {
     assert_contains Dockerfile '/usr/share/proaudio-player/announcements/'
     assert_contains docker/docker-entrypoint.sh 'DEFAULT_MEDIA_DIR=/usr/share/proaudio-player/announcements'
     assert_contains docker/docker-entrypoint.sh 'alarm_start.mp3 alarm_end.mp3 minute_silence.mp3'
+    assert_contains docker/docker-entrypoint.sh '/usr/local/bin/configure-discovery.sh'
+    assert_contains Dockerfile 'docker/configure-discovery.sh'
+    assert_contains docker/configure-discovery.sh '_proaudio-player._tcp'
+    assert_contains docker/configure-discovery.sh '<txt-record>id=$device_id</txt-record>'
+    assert_contains docker/configure-discovery.sh '<txt-record>api=$API_MAJOR</txt-record>'
+    assert_contains docker/configure-discovery.sh '<txt-record>name=$escaped_display</txt-record>'
+    assert_contains docker/configure-discovery.sh 'device-id'
     assert_contains docker/docker-entrypoint.sh 'if [[ ! -f "$MEDIA_DIR/$media_file" ]]'
 }
 
