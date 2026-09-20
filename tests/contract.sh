@@ -109,6 +109,11 @@ test_build_contract() {
     assert_contains docker/docker-entrypoint.sh '/usr/local/bin/configure-discovery.sh'
     assert_contains Dockerfile 'docker/configure-discovery.sh'
     assert_contains docker/configure-discovery.sh '_proaudio-player._tcp'
+    assert_contains docker/configure-discovery.sh 'allow-interfaces=$DISCOVERY_INTERFACE'
+    assert_contains docker/configure-discovery.sh 'disallow-other-stacks=no'
+    assert_contains docker/docker-entrypoint.sh 'external-mdns-stack'
+    assert_contains docker/docker-entrypoint.sh "ss -H -lun 'sport = :5353'"
+    assert_contains docker/proaudio-player-dockerctl 'Host UDP/5353 sockets:'
     assert_contains docker/configure-discovery.sh '<txt-record>id=$device_id</txt-record>'
     assert_contains docker/configure-discovery.sh '<txt-record>api=$API_MAJOR</txt-record>'
     assert_contains docker/configure-discovery.sh '<txt-record>name=$escaped_display</txt-record>'
