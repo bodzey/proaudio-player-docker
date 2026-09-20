@@ -192,6 +192,47 @@ case "${1:-}" in
             done
         '
         ;;
+    shutdown-profile)
+        "${base[@]}" exec -T "$SERVICE" bash -lc '
+            set -euo pipefail
+
+            services=(
+                native spotify airplay dlna mpd
+                audio-output-watch audio-buses
+                wireplumber pipewire-pulse pipewire
+                avahi session-dbus system-dbus
+            )
+
+            printf "%-20s %10s  %s\n" SERVICE STOP_MS RESULT
+            printf "%-20s %10s  %s\n" "--------------------" "----------" "------"
+
+            for name in "${services[@]}"; do
+                dir="/etc/proaudio-player/services/$name"
+                [[ -d "$dir" ]] || continue
+
+                if [[ "$(s6-svstat -u "$dir" 2>/dev/null || true)" != "true" ]]; then
+                    printf "%-20s %10s  %s\n" "$name" "-" "already-down"
+                    continue
+                fi
+
+                start="$(date +%s%3N)"
+                s6-svc -d "$dir"
+
+                result=timeout
+                for _ in {1..140}; do
+                    if [[ "$(s6-svstat -d "$dir" 2>/dev/null || true)" == "true" ]]; then
+                        result=down
+                        break
+                    fi
+                    sleep 0.05
+                done
+
+                end="$(date +%s%3N)"
+                elapsed="$((end - start))"
+                printf "%-20s %10s  %s\n" "$name" "$elapsed" "$result"
+            done
+        '
+        ;;
     logs)
         "${base[@]}" logs -f --tail "${2:-150}"
         ;;
@@ -281,7 +322,7 @@ case "${1:-}" in
         "${base[@]}" exec "$SERVICE" bash
         ;;
     *)
-        echo "Використання: docker/proaudio-player-dockerctl {init|sync-sources|revisions|build|select-audio|up-test|up-hardware|down|status|logs [рядки]|mdns|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
+        echo "Використання: docker/proaudio-player-dockerctl {init|sync-sources|revisions|build|select-audio|up-test|up-hardware|down|status|shutdown-profile|logs [рядки]|mdns|sinks|state|test-cycle [секунди]|test-silence|mpd-update|mpc [команда]|shell}" >&2
         exit 2
         ;;
 esac
