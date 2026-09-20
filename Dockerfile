@@ -161,8 +161,11 @@ RUN chmod 0755 \
     && for service in \
        system-dbus session-dbus pipewire pipewire-pulse wireplumber \
        audio-buses audio-output-watch avahi mpd airplay dlna spotify native; do \
-         install -d -m 0755 "/etc/proaudio-player/services/$service"; \
-         ln -s /usr/local/bin/s6-service-run "/etc/proaudio-player/services/$service/run"; \
+         service_dir="/etc/proaudio-player/services/$service"; \
+         install -d -m 0755 "$service_dir"; \
+         ln -s /usr/local/bin/s6-service-run "$service_dir/run"; \
+         printf '5000\n' >"$service_dir/timeout-kill"; \
+         : >"$service_dir/flag-timeout-killpg"; \
        done \
     && if dpkg-query -W -f='${Package}\n' \
          | grep -Eq '^(python([0-9.]|$|-)|libpython)'; then \
