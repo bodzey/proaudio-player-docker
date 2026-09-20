@@ -45,6 +45,7 @@ require_enabled_service "${ENABLE_DLNA:-true}" dlna
 require_enabled_service "${ENABLE_SPOTIFY:-true}" spotify
 
 if is_true "${HEALTHCHECK_HTTP:-true}"; then
+    healthcheck_port="${HEALTHCHECK_PORT:-${PROAUDIO_HTTP_PORT:-5371}}"
     curl --fail --silent --show-error --max-time 3 \
-        "http://127.0.0.1:${HEALTHCHECK_PORT:-5371}/api/v1/health" >/dev/null
+        "http://127.0.0.1:${healthcheck_port}/api/v1/health" >/dev/null
 fi
