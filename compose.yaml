@@ -29,7 +29,7 @@ services:
       PROAUDIO_DEVICE_NAME: "${PROAUDIO_DEVICE_NAME:-ProAudio Player}"
       PROAUDIO_API_MAJOR: "${PROAUDIO_API_MAJOR:-1}"
       HEALTHCHECK_HTTP: "${HEALTHCHECK_HTTP:-true}"
-      HEALTHCHECK_PORT: "${HEALTHCHECK_PORT:-5371}"
+      HEALTHCHECK_PORT: "${HEALTHCHECK_PORT:-${PROAUDIO_HTTP_PORT:-5371}}"
     volumes:
       - ./docker-data/config:/etc/proaudio-player-alert
       - ./docker-data/data:/var/lib/proaudio-player-alert
