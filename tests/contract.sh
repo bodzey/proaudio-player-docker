@@ -192,6 +192,13 @@ test_runtime_policy() {
     assert_contains docker/run-output-watch.sh 'exec "$WATCHER"'
 
     assert_contains docker/container-healthcheck.sh '/api/v1/health'
+    assert_contains docker/container-healthcheck.sh 'service_is_up'
+    assert_contains docker/container-healthcheck.sh 'session-dbus'
+    assert_contains docker/container-healthcheck.sh 'avahi'
+    assert_contains docker/container-healthcheck.sh 'ENABLE_MPD'
+    assert_contains docker/container-healthcheck.sh 'ENABLE_AIRPLAY'
+    assert_contains docker/container-healthcheck.sh 'ENABLE_DLNA'
+    assert_contains docker/container-healthcheck.sh 'ENABLE_SPOTIFY'
     for sink in         proaudio_player_music proaudio_player_alert         proaudio_player_master proaudio_player_parking; do
         assert_contains docker/container-healthcheck.sh "$sink"
     done
