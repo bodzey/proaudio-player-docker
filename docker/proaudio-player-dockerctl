@@ -196,21 +196,50 @@ case "${1:-}" in
         "${base[@]}" logs -f --tail "${2:-150}"
         ;;
     mdns)
+        discovery_interface="$("${base[@]}" exec -T "$SERVICE" awk -F= '
+            /^allow-interfaces=/ { print $2; exit }
+        ' /etc/avahi/avahi-daemon.conf)"
+
         echo "Host UDP/5353 sockets:"
-        if ! ss -H -lunp 'sport = :5353' 2>/dev/null; then
+        socket_output="$(ss -H -lunp 'sport = :5353' 2>/dev/null || true)"
+        if [[ -n "$socket_output" ]]; then
+            printf '%s\n' "$socket_output"
+        else
             ss -H -lun 'sport = :5353' 2>/dev/null || true
         fi
+
+        echo
+        echo "Host mDNS services:"
+        if command -v systemctl >/dev/null 2>&1; then
+            for unit in systemd-resolved avahi-daemon; do
+                state="$(systemctl is-active "$unit" 2>/dev/null || true)"
+                [[ -n "$state" ]] || state=unknown
+                printf '  %-18s %s\n' "$unit" "$state"
+            done
+        else
+            echo "  systemctl unavailable"
+        fi
+
+        if [[ -n "$discovery_interface" ]] && command -v resolvectl >/dev/null 2>&1; then
+            echo
+            echo "systemd-resolved link state ($discovery_interface):"
+            resolvectl status "$discovery_interface" 2>/dev/null |
+                grep -E '^[[:space:]]*(Protocols:|Current Scopes:)' || true
+        fi
+
         echo
         echo "Container startup diagnostic:"
         if "${base[@]}" exec -T "$SERVICE" test -e /run/proaudio-player/external-mdns-stack; then
             echo "external mDNS responder was present before container services started"
+            if [[ "$socket_output" != *"users:(("* ]]; then
+                echo "socket owners are hidden; run: sudo ss -H -lunp 'sport = :5353'"
+            fi
         else
             echo "no external mDNS responder was detected before container services started"
         fi
+
         echo
-        "${base[@]}" exec -T "$SERVICE" awk '
-            /^allow-interfaces=/ { print "Avahi " $0 }
-        ' /etc/avahi/avahi-daemon.conf
+        printf 'Avahi allow-interfaces=%s\n' "$discovery_interface"
         ;;
     sinks)
         "${base[@]}" exec -u proaudio-player "$SERVICE" pactl list short sinks
