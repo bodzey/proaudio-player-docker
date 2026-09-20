@@ -35,6 +35,20 @@ run_as_player() {
         -- "$@"
 }
 
+run_as_realtime_player() {
+    if [[ "${AUDIO_MODE:-null}" != "hardware" ]]; then
+        run_as_player "$@"
+    fi
+
+    exec /usr/bin/setpriv \
+        --reuid=proaudio-player \
+        --regid=proaudio-player \
+        --init-groups \
+        --inh-caps=+sys_nice \
+        --ambient-caps=+sys_nice \
+        -- "$@"
+}
+
 case "$service_name" in
     system-dbus)
         exec /usr/bin/dbus-daemon --system --nofork --nopidfile
@@ -47,15 +61,15 @@ case "$service_name" in
             --address=unix:path=/run/proaudio-player/session-bus
         ;;
     pipewire)
-        run_as_player /usr/bin/pipewire
+        run_as_realtime_player /usr/bin/pipewire
         ;;
     pipewire-pulse)
         wait_for_pipewire
-        run_as_player /usr/bin/pipewire-pulse
+        run_as_realtime_player /usr/bin/pipewire-pulse
         ;;
     wireplumber)
         wait_for_pipewire
-        run_as_player /usr/bin/wireplumber --profile main-systemwide
+        run_as_realtime_player /usr/bin/wireplumber --profile main-systemwide
         ;;
     audio-buses)
         run_as_player /usr/local/bin/run-audio-buses.sh
