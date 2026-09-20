@@ -203,8 +203,8 @@ case "${1:-}" in
                 avahi session-dbus system-dbus
             )
 
-            printf "%-20s %10s  %s\n" SERVICE STOP_MS RESULT
-            printf "%-20s %10s  %s\n" "--------------------" "----------" "------"
+            printf "%-20s %10s  %-8s %s\n" SERVICE STOP_MS RESULT "UP EXIT SIGNAL"
+            printf "%-20s %10s  %-8s %s\n" "--------------------" "----------" "--------" "--------------"
 
             for name in "${services[@]}"; do
                 dir="/etc/proaudio-player/services/$name"
@@ -216,20 +216,21 @@ case "${1:-}" in
                 fi
 
                 start="$(date +%s%3N)"
-                s6-svc -d "$dir"
-
-                result=timeout
-                for _ in {1..140}; do
-                    if [[ "$(s6-svstat -d "$dir" 2>/dev/null || true)" == "true" ]]; then
-                        result=down
-                        break
+                if s6-svlisten1 -d -t 7000 "$dir" s6-svc -d "$dir" >/dev/null 2>&1; then
+                    result=down
+                else
+                    wait_status=$?
+                    if ((wait_status == 99)); then
+                        result=timeout
+                    else
+                        result="wait:$wait_status"
                     fi
-                    sleep 0.05
-                done
+                fi
 
                 end="$(date +%s%3N)"
                 elapsed="$((end - start))"
-                printf "%-20s %10s  %s\n" "$name" "$elapsed" "$result"
+                status="$(s6-svstat -o up,exitcode,signal "$dir" 2>/dev/null || true)"
+                printf "%-20s %10s  %-8s %s\n" "$name" "$elapsed" "$result" "$status"
             done
         '
         ;;
