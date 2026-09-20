@@ -155,6 +155,10 @@ test_s6_services() {
 
 test_runtime_policy() {
     assert_contains docker/run-audio-buses.sh '/usr/libexec/proaudio-player/audio-buses.sh'
+    assert_contains docker/run-audio-buses.sh 'trap shutdown INT TERM'
+    assert_contains docker/run-audio-buses.sh 'trap cleanup EXIT'
+    assert_contains docker/run-audio-buses.sh 'cleaned_up=0'
+    assert_not_contains docker/run-audio-buses.sh 'trap cleanup EXIT INT TERM'
     assert_not_contains docker/run-audio-buses.sh 'module-null-sink'
     assert_not_contains docker/run-audio-buses.sh 'proaudio_player_test_output'
 
