@@ -220,7 +220,7 @@ case "${1:-}" in
 
                 result=timeout
                 for _ in {1..140}; do
-                    if [[ "$(s6-svstat -d "$dir" 2>/dev/null || true)" == "true" ]]; then
+                    if [[ "$(s6-svstat -u "$dir" 2>/dev/null || true)" == "false" ]]; then
                         result=down
                         break
                     fi
