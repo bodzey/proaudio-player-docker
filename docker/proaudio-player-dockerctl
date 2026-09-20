@@ -161,6 +161,8 @@ case "${1:-}" in
         ;;
     up-test)
         initialize
+        echo "Тестовий режим: AUDIO_MODE=null; фізичні аудіопристрої /dev/snd не підключаються."
+        echo "Для реального аудіовиходу використовуйте: ./docker/proaudio-player-dockerctl up-hardware"
         compose_with_revisions "${base[@]}" up -d --build --remove-orphans
         ;;
     up-hardware)
