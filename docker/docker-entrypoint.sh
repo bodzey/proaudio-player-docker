@@ -230,4 +230,21 @@ fi
 
 /usr/local/bin/preflight.sh
 
+set_optional_service_state() {
+    local service="$1" flag="$2"
+    local service_dir="/etc/proaudio-player/services/$service"
+
+    if is_true "$flag"; then
+        rm -f -- "$service_dir/down"
+    else
+        : >"$service_dir/down"
+        echo "$service вимкнено конфігурацією; s6 залишить службу down"
+    fi
+}
+
+set_optional_service_state mpd "${ENABLE_MPD:-true}"
+set_optional_service_state airplay "${ENABLE_AIRPLAY:-true}"
+set_optional_service_state dlna "${ENABLE_DLNA:-true}"
+set_optional_service_state spotify "${ENABLE_SPOTIFY:-true}"
+
 exec /usr/bin/s6-svscan /etc/proaudio-player/services
