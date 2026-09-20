@@ -131,7 +131,9 @@ test_build_contract() {
     assert_contains docker/proaudio-player-dockerctl 'Host UDP/5353 sockets:'
     assert_contains docker/proaudio-player-dockerctl 'shutdown-profile'
     assert_contains docker/proaudio-player-dockerctl 's6-svc -d "$dir"'
-    assert_contains docker/proaudio-player-dockerctl 's6-svstat -d "$dir"'
+    assert_contains docker/proaudio-player-dockerctl 's6-svlisten1 -d -t 7000 "$dir" s6-svc -d "$dir"'
+    assert_contains docker/proaudio-player-dockerctl 's6-svstat -o up,exitcode,signal "$dir"'
+    assert_not_contains docker/proaudio-player-dockerctl 's6-svstat -d "$dir"'
     assert_contains docker/proaudio-player-dockerctl 'STOP_MS'
     assert_contains docker/proaudio-player-dockerctl 'Host mDNS services:'
     assert_contains docker/proaudio-player-dockerctl 'systemd-resolved'
@@ -168,6 +170,7 @@ test_s6_services() {
     assert_contains docker/container-healthcheck.sh 's6-svstat -u'
     assert_contains docker/preflight.sh 's6-svscan'
     assert_contains docker/preflight.sh 's6-svstat'
+    assert_contains docker/preflight.sh 's6-svlisten1'
     assert_contains docker/preflight.sh 'setpriv'
     assert_contains docker/proaudio-player-dockerctl 's6-svstat "$service"'
 

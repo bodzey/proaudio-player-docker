@@ -20,6 +20,7 @@ required=(
     spotifyd
     s6-svscan
     s6-svstat
+    s6-svlisten1
     setpriv
     wireplumber
 )
