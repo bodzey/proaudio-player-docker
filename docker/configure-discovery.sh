@@ -8,6 +8,8 @@ DEVICE_ID_FILE="$DATA_DIR/device-id"
 HTTP_PORT="${PROAUDIO_HTTP_PORT:-5371}"
 API_MAJOR="${PROAUDIO_API_MAJOR:-1}"
 DISPLAY_NAME="${PROAUDIO_DEVICE_NAME:-ProAudio Player}"
+DISCOVERY_INTERFACE="${PROAUDIO_DISCOVERY_INTERFACE:-}"
+AVAHI_CONF=/etc/avahi/avahi-daemon.conf
 
 fail() {
     echo "ProAudio discovery: $*" >&2
@@ -44,8 +46,24 @@ xml_escape() {
 
 [[ -n "$DISPLAY_NAME" ]] || fail "PROAUDIO_DEVICE_NAME must not be empty"
 (("${#DISPLAY_NAME}" <= 63)) || fail "PROAUDIO_DEVICE_NAME must be at most 63 characters"
+[[ "$DISCOVERY_INTERFACE" =~ ^[A-Za-z0-9_.:-]+$ ]] \
+    || fail "invalid PROAUDIO_DISCOVERY_INTERFACE=$DISCOVERY_INTERFACE"
 
 install -d -m 0755 "$DATA_DIR" "$SERVICE_DIR"
+
+cat >"$AVAHI_CONF" <<EOF
+[server]
+use-ipv4=yes
+use-ipv6=yes
+allow-interfaces=$DISCOVERY_INTERFACE
+enable-dbus=yes
+disallow-other-stacks=no
+
+[publish]
+publish-hinfo=no
+publish-workstation=no
+EOF
+chmod 0644 "$AVAHI_CONF"
 
 configured_id="${PROAUDIO_DEVICE_ID:-}"
 stored_id=""

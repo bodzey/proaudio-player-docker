@@ -139,6 +139,16 @@ select_dlna_interface() {
     return 1
 }
 
+PROAUDIO_DISCOVERY_INTERFACE="$(select_dlna_interface)"
+export PROAUDIO_DISCOVERY_INTERFACE
+
+if ss -H -lun 'sport = :5353' 2>/dev/null | grep -q .; then
+    : >"$RUNTIME_DIR/external-mdns-stack"
+    echo "mDNS: зовнішній UDP/5353 responder уже присутній у host network namespace" >&2
+else
+    rm -f -- "$RUNTIME_DIR/external-mdns-stack"
+fi
+
 if is_true "${ENABLE_DLNA:-true}"; then
     DLNA_PORT="${PROAUDIO_DLNA_PORT:-49494}"
     if ! [[ "$DLNA_PORT" =~ ^[0-9]+$ ]] || ((DLNA_PORT < 49152 || DLNA_PORT > 65535)); then
@@ -146,7 +156,7 @@ if is_true "${ENABLE_DLNA:-true}"; then
         exit 1
     fi
 
-    PROAUDIO_DLNA_INTERFACE="$(select_dlna_interface)"
+    PROAUDIO_DLNA_INTERFACE="$PROAUDIO_DISCOVERY_INTERFACE"
     DLNA_ADDRESS="$(interface_ipv4 "$PROAUDIO_DLNA_INTERFACE")"
     export PROAUDIO_DLNA_INTERFACE
     export PROAUDIO_DLNA_FRIENDLY_NAME="${PROAUDIO_DLNA_FRIENDLY_NAME:-ProAudio Player}"
