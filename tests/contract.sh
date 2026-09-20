@@ -56,9 +56,7 @@ test_compose() {
 
     assert_contains compose.yaml 'network_mode: host'
     assert_contains compose.yaml 'restart: unless-stopped'
-    assert_contains compose.yaml 'rtprio:'
-    assert_contains compose.yaml 'soft: 88'
-    assert_contains compose.yaml 'hard: 88'
+    assert_not_contains compose.yaml 'rtprio:'
     assert_not_contains compose.yaml 'SYS_NICE'
     assert_not_contains compose.yaml 'privileged:'
     assert_contains compose.yaml 'AUDIO_MODE: "${AUDIO_MODE:-null}"'
@@ -69,6 +67,9 @@ test_compose() {
 
     assert_contains compose.hardware.yaml 'AUDIO_MODE: hardware'
     assert_contains compose.hardware.yaml 'SYS_NICE'
+    assert_contains compose.hardware.yaml 'rtprio:'
+    assert_contains compose.hardware.yaml 'soft: 88'
+    assert_contains compose.hardware.yaml 'hard: 88'
     assert_not_contains compose.yaml 'SYS_NICE'
     assert_not_contains compose.yaml 'privileged:'
     assert_not_contains compose.hardware.yaml 'privileged:'
