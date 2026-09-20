@@ -135,7 +135,12 @@ test_s6_services() {
     assert_contains docker/s6-service-run 'wait_for_system_bus'
     assert_contains docker/s6-service-run 'wait_for_pipewire'
     assert_contains docker/s6-service-run 'wireplumber --profile main-systemwide'
-    assert_contains Dockerfile 'DISABLE_RTKIT=1'
+    assert_not_contains Dockerfile 'DISABLE_RTKIT=1'
+    assert_contains docker/50-proaudio-rt.conf 'rlimits.enabled = true'
+    assert_contains docker/50-proaudio-rt.conf 'rtportal.enabled = false'
+    assert_contains docker/50-proaudio-rt.conf 'rtkit.enabled = false'
+    assert_contains Dockerfile '/etc/pipewire/pipewire.conf.d/50-proaudio-rt.conf'
+    assert_contains Dockerfile '/etc/pipewire/pipewire-pulse.conf.d/50-proaudio-rt.conf'
 }
 
 test_runtime_policy() {
