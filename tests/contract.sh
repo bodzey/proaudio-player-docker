@@ -129,6 +129,10 @@ test_build_contract() {
     assert_contains docker/proaudio-player-dockerctl 'UDP/5353 sockets present before container services started:'
     assert_contains docker/docker-entrypoint.sh "ss -H -lun 'sport = :5353'"
     assert_contains docker/proaudio-player-dockerctl 'Host UDP/5353 sockets:'
+    assert_contains docker/proaudio-player-dockerctl 'shutdown-profile'
+    assert_contains docker/proaudio-player-dockerctl 's6-svc -d "$dir"'
+    assert_contains docker/proaudio-player-dockerctl 's6-svstat -d "$dir"'
+    assert_contains docker/proaudio-player-dockerctl 'STOP_MS'
     assert_contains docker/proaudio-player-dockerctl 'Host mDNS services:'
     assert_contains docker/proaudio-player-dockerctl 'systemd-resolved'
     assert_contains docker/proaudio-player-dockerctl 'avahi-daemon'
