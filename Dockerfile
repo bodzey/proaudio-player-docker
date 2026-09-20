@@ -125,6 +125,7 @@ COPY docker/docker-entrypoint.sh \
      docker/run-dlna.sh \
      docker/run-service.sh \
      docker/container-healthcheck.sh \
+     docker/configure-discovery.sh \
      docker/preflight.sh \
      /usr/local/bin/
 
@@ -139,6 +140,7 @@ RUN chmod 0755 \
        /usr/local/bin/run-dlna.sh \
        /usr/local/bin/run-service.sh \
        /usr/local/bin/container-healthcheck.sh \
+       /usr/local/bin/configure-discovery.sh \
        /usr/local/bin/preflight.sh \
        /usr/local/bin/s6-service-run \
     && mkdir -p \
