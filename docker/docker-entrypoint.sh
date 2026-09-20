@@ -98,7 +98,7 @@ interface_ipv4() {
         | awk 'NR == 1 { split($4, address, "/"); print address[1] }'
 }
 
-interface_is_usable_for_dlna() {
+interface_is_usable_for_discovery() {
     local flags address
     flags="$(interface_flags "$1")"
     address="$(interface_ipv4 "$1")"
@@ -107,39 +107,39 @@ interface_is_usable_for_dlna() {
         && [[ ",$flags," == *,MULTICAST,* ]]
 }
 
-select_dlna_interface() {
+select_discovery_interface() {
     local requested route candidate
 
-    requested="${PROAUDIO_DLNA_INTERFACE:-}"
+    requested="${PROAUDIO_DISCOVERY_INTERFACE:-${PROAUDIO_DLNA_INTERFACE:-}}"
     if [[ -n "$requested" ]]; then
-        if [[ "$requested" == "lo" ]] || ! interface_is_usable_for_dlna "$requested"; then
-            echo "PROAUDIO_DLNA_INTERFACE=$requested не є активним multicast IPv4 інтерфейсом." >&2
+        if [[ "$requested" == "lo" ]] || ! interface_is_usable_for_discovery "$requested"; then
+            echo "Discovery interface '$requested' не є активним multicast IPv4 інтерфейсом." >&2
             return 1
         fi
         printf '%s\n' "$requested"
         return 0
     fi
 
-    route="$(ip -o -4 route get 239.255.255.250 2>/dev/null | head -n 1 || true)"
+    route="$(ip -o -4 route get 224.0.0.251 2>/dev/null | head -n 1 || true)"
     candidate="$(awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }' <<<"$route")"
-    if [[ -n "$candidate" ]] && [[ "$candidate" != "lo" ]] && interface_is_usable_for_dlna "$candidate"; then
+    if [[ -n "$candidate" ]] && [[ "$candidate" != "lo" ]] && interface_is_usable_for_discovery "$candidate"; then
         printf '%s\n' "$candidate"
         return 0
     fi
 
     while IFS= read -r candidate; do
         [[ "$candidate" == "lo" ]] && continue
-        if interface_is_usable_for_dlna "$candidate"; then
+        if interface_is_usable_for_discovery "$candidate"; then
             printf '%s\n' "$candidate"
             return 0
         fi
     done < <(ip -o -4 addr show scope global up 2>/dev/null | awk '{print $2}' | awk '!seen[$0]++')
 
-    echo "Не знайдено активного multicast IPv4 інтерфейсу для DLNA." >&2
+    echo "Не знайдено активного multicast IPv4 інтерфейсу для discovery." >&2
     return 1
 }
 
-PROAUDIO_DISCOVERY_INTERFACE="$(select_dlna_interface)"
+PROAUDIO_DISCOVERY_INTERFACE="$(select_discovery_interface)"
 export PROAUDIO_DISCOVERY_INTERFACE
 
 if ss -H -lun 'sport = :5353' 2>/dev/null | grep -q .; then
