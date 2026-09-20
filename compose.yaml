@@ -8,6 +8,7 @@ services:
         NATIVE_REVISION: "${NATIVE_REVISION:-unknown}"
         WEBUI_REVISION: "${WEBUI_REVISION:-unknown}"
         SPOTIFYD_VERSION: "${SPOTIFYD_VERSION:-0.4.2}"
+        SPOTIFYD_REVISION: "${SPOTIFYD_REVISION:-c5b94367014856a8c541dea565cbd332e034fb9e}"
     image: "proaudio-player-native:${IMAGE_TAG:-dev}"
     container_name: proaudio-player
     restart: unless-stopped
