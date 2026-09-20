@@ -59,6 +59,23 @@ proaudio-player-native
 
 Так немає sidecar-container, приватної Docker subnet або hardware-specific network policy.
 
+## Control-plane discovery
+
+Docker deployment публікує native HTTP API в LAN через Avahi/DNS-SD service `_proaudio-player._tcp`.
+
+Identity належить deployment layer, а не native core. На першому запуску adapter створює canonical UUID і зберігає його у persistent `/var/lib/proaudio-player-alert/device-id`. Якщо deployment явно задає `PROAUDIO_DEVICE_ID`, він має збігатися із вже збереженим ID; це запобігає випадковій зміні ідентичності після rebuild.
+
+Advertisement містить:
+
+```text
+id=<persistent UUID>
+api=<control API major version>
+name=<display name>
+port=<PROAUDIO_HTTP_PORT>
+```
+
+Оскільки runtime використовує `network_mode: host`, mDNS виходить безпосередньо у LAN без bridge/NAT relay.
+
 ## Audio
 
 Docker споживає routing policy безпосередньо з native checkout:
