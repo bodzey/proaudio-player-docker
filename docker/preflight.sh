@@ -13,6 +13,7 @@ required=(
     mpd
     mpv
     pactl
+    pacat
     pipewire
     pipewire-pulse
     proaudio-player-native
