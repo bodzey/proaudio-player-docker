@@ -12,6 +12,10 @@ services:
     container_name: proaudio-player
     restart: unless-stopped
     network_mode: host
+    ulimits:
+      rtprio:
+        soft: 88
+        hard: 88
     environment:
       TZ: "${TZ:-Europe/Kyiv}"
       AUDIO_MODE: "${AUDIO_MODE:-null}"

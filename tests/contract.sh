@@ -56,6 +56,11 @@ test_compose() {
 
     assert_contains compose.yaml 'network_mode: host'
     assert_contains compose.yaml 'restart: unless-stopped'
+    assert_contains compose.yaml 'rtprio:'
+    assert_contains compose.yaml 'soft: 88'
+    assert_contains compose.yaml 'hard: 88'
+    assert_not_contains compose.yaml 'SYS_NICE'
+    assert_not_contains compose.yaml 'privileged:'
     assert_contains compose.yaml 'AUDIO_MODE: "${AUDIO_MODE:-null}"'
     assert_contains compose.yaml 'PROAUDIO_DLNA_INTERFACE: "${PROAUDIO_DLNA_INTERFACE:-}"'
     assert_not_contains compose.yaml 'PROAUDIO_LAN_INTERFACE'
@@ -135,7 +140,12 @@ test_s6_services() {
     assert_contains docker/s6-service-run 'wait_for_system_bus'
     assert_contains docker/s6-service-run 'wait_for_pipewire'
     assert_contains docker/s6-service-run 'wireplumber --profile main-systemwide'
-    assert_contains Dockerfile 'DISABLE_RTKIT=1'
+    assert_not_contains Dockerfile 'DISABLE_RTKIT=1'
+    assert_contains docker/50-proaudio-rt.conf 'rlimits.enabled = true'
+    assert_contains docker/50-proaudio-rt.conf 'rtportal.enabled = false'
+    assert_contains docker/50-proaudio-rt.conf 'rtkit.enabled = false'
+    assert_contains Dockerfile '/etc/pipewire/pipewire.conf.d/50-proaudio-rt.conf'
+    assert_contains Dockerfile '/etc/pipewire/pipewire-pulse.conf.d/50-proaudio-rt.conf'
 }
 
 test_runtime_policy() {
