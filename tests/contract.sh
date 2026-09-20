@@ -238,7 +238,7 @@ test_runtime_policy() {
         assert_contains docker/container-healthcheck.sh "$sink"
     done
 
-    for command in         gmediarender mpd pipewire proaudio-player-native         shairport-sync spotifyd wireplumber; do
+    for command in         gmediarender mpd pacat pipewire proaudio-player-native         shairport-sync spotifyd wireplumber; do
         assert_contains docker/preflight.sh "$command"
     done
 
