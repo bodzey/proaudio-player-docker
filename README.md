@@ -76,6 +76,26 @@ PROAUDIO_DLNA_PORT=49494
 
 Допустимий діапазон gmediarender: `49152..65535`. Loopback не використовується, оскільки libupnp відхиляє loopback interface для `UpnpInit2`. Docker не містить припущень про `eth0`, `wlan0`, `enp*` або адресу локальної мережі.
 
+## Android / DNS-SD discovery
+
+Контейнер рекламує control-plane API через Avahi/DNS-SD:
+
+```text
+_proaudio-player._tcp
+```
+
+TXT contract:
+
+```text
+id=<persistent canonical UUID>
+api=1
+name=<human-readable device name>
+```
+
+Docker instance ID зберігається в `docker-data/data/device-id` і не змінюється після restart/rebuild. Для керованого deployment ID можна задати `PROAUDIO_DEVICE_ID`; на першому старті він фіксується у persistent state. `PROAUDIO_DEVICE_NAME` задає назву, яку бачить Android-клієнт. SRV port завжди відповідає фактичному `PROAUDIO_HTTP_PORT`.
+
+`network_mode: host` потрібний не лише для DLNA/AirPlay, а й для mDNS advertisement у фізичну LAN.
+
 ## Sources
 
 ```text
