@@ -228,6 +228,16 @@ case "${1:-}" in
         fi
 
         echo
+        echo "UDP/5353 sockets present before container services started:"
+        "${base[@]}" exec -T "$SERVICE" sh -lc '
+            if [[ -s /run/proaudio-player/external-mdns-sockets ]]; then
+                cat /run/proaudio-player/external-mdns-sockets
+            else
+                echo "<none>"
+            fi
+        '
+
+        echo
         echo "Container startup diagnostic:"
         if "${base[@]}" exec -T "$SERVICE" test -e /run/proaudio-player/external-mdns-stack; then
             echo "external mDNS responder was present before container services started"
