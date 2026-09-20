@@ -5,6 +5,7 @@ required=(
     amixer
     busctl
     dbus-daemon
+    avahi-daemon
     gmediarender
     ip
     kill
@@ -38,6 +39,7 @@ for asset in \
     /usr/share/proaudio-player/announcements/minute_silence.mp3 \
     /usr/libexec/proaudio-player/audio-buses.sh \
     /usr/libexec/proaudio-player/proaudio-player-output-watch \
+    /usr/local/bin/configure-discovery.sh \
     /opt/proaudio-player/defaults/audio.env.example \
     /opt/proaudio-player/defaults/mpd.conf \
     /opt/proaudio-player/defaults/shairport-sync.conf \
