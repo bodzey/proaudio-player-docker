@@ -65,6 +65,7 @@ test_compose() {
     assert_contains compose.yaml 'PROAUDIO_DEVICE_ID: "${PROAUDIO_DEVICE_ID:-}"'
     assert_contains compose.yaml 'PROAUDIO_DEVICE_NAME: "${PROAUDIO_DEVICE_NAME:-ProAudio Player}"'
     assert_contains compose.yaml 'PROAUDIO_API_MAJOR: "${PROAUDIO_API_MAJOR:-1}"'
+    assert_contains compose.yaml 'HEALTHCHECK_PORT: "${HEALTHCHECK_PORT:-${PROAUDIO_HTTP_PORT:-5371}}"'
     assert_contains compose.yaml 'SPOTIFYD_VERSION: "${SPOTIFYD_VERSION:-0.4.2}"'
     assert_contains compose.yaml 'SPOTIFYD_REVISION: "${SPOTIFYD_REVISION:-c5b94367014856a8c541dea565cbd332e034fb9e}"'
     assert_not_contains compose.yaml 'PROAUDIO_LAN_INTERFACE'
@@ -101,6 +102,7 @@ test_build_contract() {
     assert_contains Dockerfile 'FROM rust:1.88-bookworm AS native-builder'
     assert_contains Dockerfile 'cargo build --locked --release'
     assert_contains Dockerfile 'FROM node:22-bookworm-slim AS webui-builder'
+    assert_not_contains Dockerfile 'HEALTHCHECK_PORT=5371'
     assert_contains Dockerfile 'ARG SPOTIFYD_REVISION=c5b94367014856a8c541dea565cbd332e034fb9e'
     assert_contains Dockerfile 'default-features = false, features = ["native-tls", "with-avahi"]'
     assert_contains Dockerfile 'librespot-discovery feature "with-avahi"'
@@ -224,6 +226,7 @@ test_runtime_policy() {
     assert_contains docker/run-output-watch.sh 'exec "$WATCHER"'
 
     assert_contains docker/container-healthcheck.sh '/api/v1/health'
+    assert_contains docker/container-healthcheck.sh 'HEALTHCHECK_PORT:-${PROAUDIO_HTTP_PORT:-5371}'
     assert_contains docker/container-healthcheck.sh 'service_is_up'
     assert_contains docker/container-healthcheck.sh 'session-dbus'
     assert_contains docker/container-healthcheck.sh 'avahi'
