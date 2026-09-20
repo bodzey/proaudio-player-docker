@@ -60,6 +60,7 @@ test_compose() {
     assert_not_contains compose.yaml 'SYS_NICE'
     assert_not_contains compose.yaml 'privileged:'
     assert_contains compose.yaml 'AUDIO_MODE: "${AUDIO_MODE:-null}"'
+    assert_contains compose.yaml 'PROAUDIO_DISCOVERY_INTERFACE: "${PROAUDIO_DISCOVERY_INTERFACE:-}"'
     assert_contains compose.yaml 'PROAUDIO_DLNA_INTERFACE: "${PROAUDIO_DLNA_INTERFACE:-}"'
     assert_contains compose.yaml 'PROAUDIO_DEVICE_ID: "${PROAUDIO_DEVICE_ID:-}"'
     assert_contains compose.yaml 'PROAUDIO_DEVICE_NAME: "${PROAUDIO_DEVICE_NAME:-ProAudio Player}"'
@@ -88,8 +89,12 @@ test_hardware_neutrality() {
 
     assert_not_contains docker/run-dlna.sh '--interface-name=lo'
     assert_not_contains docker/run-dlna.sh 'eth0'
-    assert_contains docker/docker-entrypoint.sh 'route get 239.255.255.250'
-    assert_contains docker/docker-entrypoint.sh 'interface_is_usable_for_dlna'
+    assert_contains docker/docker-entrypoint.sh 'route get 224.0.0.251'
+    assert_contains docker/docker-entrypoint.sh 'interface_is_usable_for_discovery'
+    assert_contains docker/docker-entrypoint.sh 'select_discovery_interface'
+    assert_contains docker/docker-entrypoint.sh 'PROAUDIO_DISCOVERY_INTERFACE:-${PROAUDIO_DLNA_INTERFACE:-}'
+    assert_not_contains docker/docker-entrypoint.sh 'select_dlna_interface'
+    assert_not_contains docker/docker-entrypoint.sh 'interface_is_usable_for_dlna'
 }
 
 test_build_contract() {
