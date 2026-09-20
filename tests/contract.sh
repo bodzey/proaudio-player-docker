@@ -125,8 +125,15 @@ test_build_contract() {
     assert_contains docker/configure-discovery.sh 'allow-interfaces=$DISCOVERY_INTERFACE'
     assert_contains docker/configure-discovery.sh 'disallow-other-stacks=no'
     assert_contains docker/docker-entrypoint.sh 'external-mdns-stack'
+    assert_contains docker/docker-entrypoint.sh 'external-mdns-sockets'
+    assert_contains docker/proaudio-player-dockerctl 'UDP/5353 sockets present before container services started:'
     assert_contains docker/docker-entrypoint.sh "ss -H -lun 'sport = :5353'"
     assert_contains docker/proaudio-player-dockerctl 'Host UDP/5353 sockets:'
+    assert_contains docker/proaudio-player-dockerctl 'Host mDNS services:'
+    assert_contains docker/proaudio-player-dockerctl 'systemd-resolved'
+    assert_contains docker/proaudio-player-dockerctl 'avahi-daemon'
+    assert_contains docker/proaudio-player-dockerctl 'resolvectl status'
+    assert_contains docker/proaudio-player-dockerctl "sudo ss -H -lunp 'sport = :5353'"
     assert_contains docker/configure-discovery.sh '<txt-record>id=$device_id</txt-record>'
     assert_contains docker/configure-discovery.sh '<txt-record>api=$API_MAJOR</txt-record>'
     assert_contains docker/configure-discovery.sh '<txt-record>name=$escaped_display</txt-record>'
