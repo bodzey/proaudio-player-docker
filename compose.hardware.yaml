@@ -1,5 +1,7 @@
 services:
   proaudio-player:
+    cap_add:
+      - SYS_NICE
     environment:
       AUDIO_MODE: hardware
     device_cgroup_rules:
