@@ -142,7 +142,9 @@ select_discovery_interface() {
 PROAUDIO_DISCOVERY_INTERFACE="$(select_discovery_interface)"
 export PROAUDIO_DISCOVERY_INTERFACE
 
-if ss -H -lun 'sport = :5353' 2>/dev/null | grep -q .; then
+MDNS_STARTUP_SNAPSHOT="$RUNTIME_DIR/external-mdns-sockets"
+ss -H -lun 'sport = :5353' 2>/dev/null >"$MDNS_STARTUP_SNAPSHOT" || true
+if [[ -s "$MDNS_STARTUP_SNAPSHOT" ]]; then
     : >"$RUNTIME_DIR/external-mdns-stack"
     echo "mDNS: зовнішній UDP/5353 responder уже присутній у host network namespace" >&2
 else
