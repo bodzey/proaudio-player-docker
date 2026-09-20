@@ -131,7 +131,8 @@ test_build_contract() {
     assert_contains docker/proaudio-player-dockerctl 'Host UDP/5353 sockets:'
     assert_contains docker/proaudio-player-dockerctl 'shutdown-profile'
     assert_contains docker/proaudio-player-dockerctl 's6-svc -d "$dir"'
-    assert_contains docker/proaudio-player-dockerctl 's6-svstat -d "$dir"'
+    assert_contains docker/proaudio-player-dockerctl 's6-svstat -u "$dir"'
+    assert_not_contains docker/proaudio-player-dockerctl 's6-svstat -d "$dir"'
     assert_contains docker/proaudio-player-dockerctl 'STOP_MS'
     assert_contains docker/proaudio-player-dockerctl 'Host mDNS services:'
     assert_contains docker/proaudio-player-dockerctl 'systemd-resolved'
@@ -156,6 +157,7 @@ test_python_free_runtime() {
 
     [[ ! -e docker/supervisord.conf ]] || fail "legacy supervisord.conf still exists"
     [[ ! -e requirements-test.txt ]] || fail "Python test requirements still exist"
+    [[ ! -e pytest.ini ]] || fail "legacy pytest configuration still exists"
     [[ ! -e tests/test_docker_assets.py ]] || fail "pytest contract tests still exist"
 
     if find docker tests -type f -name '*.py' -print -quit | grep -q .; then
