@@ -1,5 +1,11 @@
 services:
   proaudio-player:
+    cap_add:
+      - SYS_NICE
+    ulimits:
+      rtprio:
+        soft: 88
+        hard: 88
     environment:
       AUDIO_MODE: hardware
     device_cgroup_rules:
