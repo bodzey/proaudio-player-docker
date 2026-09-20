@@ -191,6 +191,8 @@ ln -sfn /etc/machine-id /var/lib/dbus/machine-id
 
 find "$DATA_DIR" -maxdepth 2 -name '*.pid' -delete
 
+/usr/local/bin/configure-discovery.sh
+
 chown -R proaudio-player:proaudio-player \
     "$DATA_DIR" /srv/music "$RUNTIME_DIR" /run/shairport-sync \
     /home/proaudio-player/.local/state/wireplumber
