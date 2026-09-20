@@ -216,16 +216,16 @@ case "${1:-}" in
                 fi
 
                 start="$(date +%s%3N)"
-                s6-svc -d "$dir"
-
-                result=timeout
-                for _ in {1..140}; do
-                    if [[ "$(s6-svstat -u "$dir" 2>/dev/null || true)" == "false" ]]; then
-                        result=down
-                        break
+                if s6-svc -T 7000 -wd -d "$dir"; then
+                    result=down
+                else
+                    rc=$?
+                    if ((rc == 1)); then
+                        result=timeout
+                    else
+                        result="error:$rc"
                     fi
-                    sleep 0.05
-                done
+                fi
 
                 end="$(date +%s%3N)"
                 elapsed="$((end - start))"
