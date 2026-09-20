@@ -29,3 +29,11 @@ jobs:
           test "$(docker compose config --services | wc -l)" -eq 1
           test "$(docker compose config --services)" = "proaudio-player"
           ! grep -RniE 'platform:[[:space:]].*amd64|--interface-name=eth0|PROAUDIO_LAN_INTERFACE|raspberry|bcm(27|28|43)|mmcblk|vc4'             Dockerfile compose.yaml docker
+
+      - name: Build Spotify Connect discovery stage
+        run: |
+          docker build \
+            --target spotifyd-builder \
+            --build-arg SPOTIFYD_VERSION=0.4.2 \
+            --build-arg SPOTIFYD_REVISION=c5b94367014856a8c541dea565cbd332e034fb9e \
+            .
