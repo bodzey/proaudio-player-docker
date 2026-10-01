@@ -111,7 +111,11 @@ git submodule update --init --recursive
 ./docker/proaudio-player-dockerctl sync-sources
 ```
 
-Gitlink-и є bootstrap snapshot. `sync-sources` оновлює working checkout до branch policy з `.gitmodules`.
+Gitlink-и фіксують перевірені ревізії native та WebUI для відтворюваного build.
+`sync-sources` оновлює checkout-и до `origin/dev`, перевіряючи обидва підмодулі
+перед змінами. Локальні правки, нові файли та коміти поза `origin/dev` блокують
+оновлення. Зміни ревізій видно у `git status`; після перевірок їх можна зафіксувати
+комітом Docker-репозиторію.
 
 ## Запуск без фізичного аудіо
 

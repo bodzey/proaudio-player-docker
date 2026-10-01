@@ -36,15 +36,15 @@ test_submodules() {
     assert_contains .gitmodules 'path = sources/proaudio-player-webui'
     assert_contains .gitmodules 'url = ../proaudio-player-webui.git'
 
-    [[ "$(grep -Fc $'\tbranch = dev' .gitmodules)" -eq 2 ]]         || fail "both source submodules must track dev"
-    [[ "$(grep -Fc $'\tignore = all' .gitmodules)" -eq 2 ]]         || fail "both source submodules must ignore gitlink drift"
+    [[ "$(grep -Fc $'\tbranch = dev' .gitmodules)" -eq 2 ]] || fail "both source submodules must track dev"
+    assert_not_contains .gitmodules 'ignore = all'
 
     for path in sources/proaudio-player-native sources/proaudio-player-webui; do
-        git ls-files --stage "$path" | grep -q '^160000 '             || fail "$path is not recorded as a git submodule"
+        git ls-files --stage "$path" | grep -q '^160000 ' || fail "$path is not recorded as a git submodule"
     done
 
-    assert_contains docker/proaudio-player-dockerctl 'git submodule update --remote --checkout'
-    assert_contains docker/proaudio-player-dockerctl 'bootstrap snapshot'
+    assert_contains docker/proaudio-player-dockerctl 'git submodule update --init --remote --checkout'
+    bash tests/sync-sources.sh
 }
 
 test_compose() {
@@ -52,7 +52,7 @@ test_compose() {
     docker compose -f compose.yaml -f compose.hardware.yaml config --quiet
 
     mapfile -t services < <(docker compose config --services)
-    [[ "${#services[@]}" -eq 1 && "${services[0]}" == "proaudio-player" ]]         || fail "compose.yaml must define exactly one runtime service"
+    [[ "${#services[@]}" -eq 1 && "${services[0]}" == "proaudio-player" ]] || fail "compose.yaml must define exactly one runtime service"
 
     assert_contains compose.yaml 'network_mode: host'
     assert_contains compose.yaml 'restart: unless-stopped'
@@ -86,7 +86,7 @@ test_compose() {
 }
 
 test_hardware_neutrality() {
-    assert_regex_absent         'platform:[[:space:]].*amd64|--interface-name=eth0|PROAUDIO_LAN_INTERFACE|raspberry|bcm(27|28|43)|mmcblk|vc4'         Dockerfile compose.yaml compose.hardware.yaml docker
+    assert_regex_absent 'platform:[[:space:]].*amd64|--interface-name=eth0|PROAUDIO_LAN_INTERFACE|raspberry|bcm(27|28|43)|mmcblk|vc4' Dockerfile compose.yaml compose.hardware.yaml docker
 
     assert_not_contains docker/run-dlna.sh '--interface-name=lo'
     assert_not_contains docker/run-dlna.sh 'eth0'
@@ -176,7 +176,7 @@ test_s6_services() {
     assert_contains docker/preflight.sh 'setpriv'
     assert_contains docker/proaudio-player-dockerctl 's6-svstat "$service"'
 
-    for service in         system-dbus session-dbus pipewire pipewire-pulse wireplumber         audio-buses audio-output-watch avahi mpd airplay dlna spotify native; do
+    for service in system-dbus session-dbus pipewire pipewire-pulse wireplumber audio-buses audio-output-watch avahi mpd airplay dlna spotify native; do
         assert_contains docker/s6-service-run "$service)"
         assert_contains Dockerfile "$service"
     done
@@ -234,11 +234,11 @@ test_runtime_policy() {
     assert_contains docker/container-healthcheck.sh 'ENABLE_AIRPLAY'
     assert_contains docker/container-healthcheck.sh 'ENABLE_DLNA'
     assert_contains docker/container-healthcheck.sh 'ENABLE_SPOTIFY'
-    for sink in         proaudio_player_music proaudio_player_alert         proaudio_player_master proaudio_player_parking; do
+    for sink in proaudio_player_music proaudio_player_alert proaudio_player_master proaudio_player_parking; do
         assert_contains docker/container-healthcheck.sh "$sink"
     done
 
-    for command in         gmediarender mpd pacat pipewire proaudio-player-native         shairport-sync spotifyd wireplumber; do
+    for command in gmediarender mpd pacat pipewire proaudio-player-native shairport-sync spotifyd wireplumber; do
         assert_contains docker/preflight.sh "$command"
     done
 

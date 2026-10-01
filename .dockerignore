@@ -11,3 +11,16 @@ compose*.yaml
 sources/proaudio-player-native/target
 sources/proaudio-player-webui/node_modules
 sources/proaudio-player-webui/dist
+**/.env
+**/.env.*
+**/*.pk8
+**/*.private.pem
+**/*.jks
+**/*.keystore
+**/keystore.properties
+**/secrets.properties
+**/device-license.json
+**/device-request.json
+**/alerts-token
+**/coverage
+**/.cache

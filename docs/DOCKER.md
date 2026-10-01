@@ -112,7 +112,10 @@ Shared runtime volume відсутній, оскільки container один.
 
 ## Source policy
 
-`.gitmodules` задає `dev` для native та WebUI. Gitlinks є bootstrap revisions; `dockerctl sync-sources` оновлює working checkout перед build.
+`.gitmodules` задає `dev` для native та WebUI. Gitlinks фіксують перевірені
+ревізії для відтворюваного build. `dockerctl sync-sources` явно оновлює checkout-и
+до `origin/dev` та відмовляється працювати з локальними змінами або комітами
+поза цією гілкою. Оновлені ревізії відображаються у `git status`.
 
 ## Acceptance
 

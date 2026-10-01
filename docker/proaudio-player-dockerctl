@@ -9,6 +9,7 @@ hardware=(docker compose -f compose.yaml -f compose.hardware.yaml)
 SERVICE=proaudio-player
 NATIVE=sources/proaudio-player-native
 WEBUI=sources/proaudio-player-webui
+SOURCE_PATHS=("$NATIVE" "$WEBUI")
 OUTPUT_ENV=docker-data/data/audio-output.env
 
 require_sources() {
@@ -45,12 +46,41 @@ configured_branch() {
 }
 
 sync_sources() {
+    local module branch
+    for module in "${SOURCE_PATHS[@]}"; do
+        branch="$(configured_branch "$module")"
+        if [[ "$branch" != dev ]]; then
+            printf 'Submodule %s must track dev, found: %s\n' "$module" "$branch" >&2
+            exit 1
+        fi
+        if [[ -e "$module/.git" ]] && \
+           [[ -n "$(git -C "$module" status --porcelain --untracked-files=all)" ]]; then
+            printf 'Submodule %s has local changes; refusing to overwrite them.\n' "$module" >&2
+            exit 1
+        fi
+    done
+
+    for module in "${SOURCE_PATHS[@]}"; do
+        [[ -e "$module/.git" ]] || continue
+        git -C "$module" fetch origin dev
+        if ! git -C "$module" merge-base --is-ancestor HEAD refs/remotes/origin/dev; then
+            printf 'Submodule %s has commits outside origin/dev; save them before syncing.\n' "$module" >&2
+            exit 1
+        fi
+    done
+
     git submodule sync --recursive
-    git submodule update --init sources/proaudio-player-native sources/proaudio-player-webui
-    git submodule update --remote --checkout sources/proaudio-player-native sources/proaudio-player-webui
+    git submodule update --init --remote --checkout "${SOURCE_PATHS[@]}"
+    for module in "${SOURCE_PATHS[@]}"; do
+        if [[ "$(git -C "$module" rev-parse HEAD)" != \
+              "$(git -C "$module" rev-parse refs/remotes/origin/dev)" ]]; then
+            printf 'Submodule %s did not reach origin/dev.\n' "$module" >&2
+            exit 1
+        fi
+    done
     echo "Оновлено source checkout-и до гілок, заданих у .gitmodules:"
     revisions
-    echo "Gitlink-и Docker-репозиторію є лише bootstrap snapshot; для dev їх оновлювати commit-ом не потрібно."
+    echo "Gitlink-и фіксують перевірені ревізії; оновлені checkout-и видно у git status."
 }
 
 revisions() {
@@ -187,6 +217,8 @@ case "${1:-}" in
         ;;
     status)
         "${base[@]}" ps
+        # Expand the service variables inside the container.
+        # shellcheck disable=SC2016
         "${base[@]}" exec "$SERVICE" bash -lc '
             for service in /etc/proaudio-player/services/*; do
                 printf "%-20s " "$(basename "$service")"
@@ -195,6 +227,8 @@ case "${1:-}" in
         '
         ;;
     shutdown-profile)
+        # Expand the service variables inside the container.
+        # shellcheck disable=SC2016
         "${base[@]}" exec -T "$SERVICE" bash -lc '
             set -euo pipefail
 
@@ -239,6 +273,8 @@ case "${1:-}" in
         "${base[@]}" logs -f --tail "${2:-150}"
         ;;
     mdns)
+        # AWK field references are interpreted by the container command.
+        # shellcheck disable=SC2016
         discovery_interface="$("${base[@]}" exec -T "$SERVICE" awk -F= '
             /^allow-interfaces=/ { print $2; exit }
         ' /etc/avahi/avahi-daemon.conf)"
